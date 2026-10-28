@@ -1163,6 +1163,7 @@ async function viewMatch(mid, me, seq) {
     </section>
     ${advs ? `<section class="card" style="margin-top:16px"><h2>Преимущество <span class="r">${seg('adv', [['gold', 'Золото'], ['xp', 'Опыт']], S.adv || 'gold')}</span></h2>
       ${chartBox('adv', 200)}<div class="legend"><span><i style="background:var(--win)"></i>выше нуля: Radiant впереди</span><span><i style="background:var(--loss)"></i>ниже нуля: Dire впереди</span></div></section>` : ''}
+    ${matchAnalysis(m, meP)}
     ${teamTable('Radiant', 'rad', rad, m.radiant_win, me, mvps, parties)}
     ${teamTable('Dire', 'dire', dire, !m.radiant_win, me, mvps, parties)}
     ${!m.parsed ? '<p class="muted" style="font-size:12px">Матч не распарсен: нет графика золота, закупов и бенчмарков. Жми «Запросить парсинг», через пару минут обнови страницу.</p>' : '<p class="muted" style="font-size:12px">Клик по игроку → закуп, бенчмарки и детали.</p>'}`;

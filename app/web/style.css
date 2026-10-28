@@ -463,6 +463,19 @@ select:focus, .inp:focus { border-color: var(--accent); }
 
 #livebtn .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--loss); box-shadow: 0 0 0 0 var(--loss); animation: pulse 1.6s infinite; }
 @keyframes pulse { 0% { box-shadow: 0 0 0 0 rgba(232, 73, 61, .6); } 70% { box-shadow: 0 0 0 7px rgba(232, 73, 61, 0); } 100% { box-shadow: 0 0 0 0 rgba(232, 73, 61, 0); } }
+/* ── разбор матча ── */
+.lrow { display: grid; grid-template-columns: 50px 1fr 150px 1fr; gap: 10px; align-items: center; padding: 8px 0; border-bottom: 1px solid var(--edge); }
+.lrow:last-child { border-bottom: 0; }
+.lrow .lname { color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: 1px; }
+.lrow .lns { display: flex; gap: 4px; }
+.lrow .lns:last-child { justify-content: flex-start; }
+.lrow .lns:nth-child(2) { justify-content: flex-end; }
+.lrow .lns img { width: 54px; height: 30px; border-radius: 4px; object-fit: cover; }
+.lrow .lns.lost img { opacity: .45; filter: grayscale(.6); }
+.lrow .lv { text-align: center; font-weight: 700; display: flex; flex-direction: column; }
+.lrow .lv small { font-weight: 400; font-size: 11px; }
+.swing { display: grid; grid-template-columns: 70px 1fr auto; gap: 10px; align-items: center; padding: 6px 0; }
+
 @media (max-width: 960px) { #livebtn span, #probtn span { display: none; } }
 @media (prefers-reduced-motion: reduce) { #livebtn .dot { animation: none; } }
 

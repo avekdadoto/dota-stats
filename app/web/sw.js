@@ -1,9 +1,9 @@
 'use strict';
 /* Сервис-воркер: чтоб сайт ставился как приложение и открывался без сети.
    Своя статика — «сначала сеть, потом кэш» (обновы приезжают сразу), OpenDota и картинки не трогаем. */
-const CACHE = 'dota-stats-v1';
+const CACHE = 'dota-stats-v2';
 const CORE = ['./', 'index.html', 'style.css', 'static-api.js', 'app.js', 'meta.js', 'draft.js', 'skill.js',
-  'sessions.js', 'wrapped.js', 'goals.js', 'mmr.js', 'live.js', 'icon.svg', 'manifest.webmanifest'];
+  'sessions.js', 'wrapped.js', 'goals.js', 'mmr.js', 'live.js', 'analysis.js', 'icon.svg', 'manifest.webmanifest'];
 
 self.addEventListener('install', e => {
   e.waitUntil(caches.open(CACHE).then(c => c.addAll(CORE)).catch(() => {}).then(() => self.skipWaiting()));
