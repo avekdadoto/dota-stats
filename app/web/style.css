@@ -452,6 +452,15 @@ select:focus, .inp:focus { border-color: var(--accent); }
 .gform label { display: grid; gap: 4px; color: var(--muted); font-size: 12px; }
 .gform select, .gform .inp { width: 100%; }
 
+/* ── ммр ── */
+.mrow { display: grid; grid-template-columns: minmax(0, 1.3fr) 1fr 64px; gap: 10px; align-items: center; padding: 4px 0; }
+.mrow .num { text-align: right; font-weight: 700; }
+.mbar { position: relative; height: 8px; background: var(--surface-3); border-radius: 4px; }
+.mbar::after { content: ""; position: absolute; left: 50%; top: -3px; bottom: -3px; width: 1px; background: var(--muted); }
+.mbar i { position: absolute; top: 0; bottom: 0; border-radius: 4px; }
+.mbar i.p { left: 50%; background: var(--win); }
+.mbar i.n { right: 50%; background: var(--loss); }
+
 @media (max-width: 960px) {
   .g-main, .g3 { grid-template-columns: minmax(0, 1fr); }
 }
