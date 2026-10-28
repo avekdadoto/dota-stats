@@ -461,6 +461,49 @@ select:focus, .inp:focus { border-color: var(--accent); }
 .mbar i.p { left: 50%; background: var(--win); }
 .mbar i.n { right: 50%; background: var(--loss); }
 
+#livebtn .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--loss); box-shadow: 0 0 0 0 var(--loss); animation: pulse 1.6s infinite; }
+@keyframes pulse { 0% { box-shadow: 0 0 0 0 rgba(232, 73, 61, .6); } 70% { box-shadow: 0 0 0 7px rgba(232, 73, 61, 0); } 100% { box-shadow: 0 0 0 0 rgba(232, 73, 61, 0); } }
+@media (max-width: 960px) { #livebtn span, #probtn span { display: none; } }
+@media (prefers-reduced-motion: reduce) { #livebtn .dot { animation: none; } }
+
+/* ── шанс победы ── */
+.dprob { margin-bottom: 16px; padding: 12px 14px; border: 1px solid var(--edge); border-radius: var(--r); background: var(--surface-2); }
+.dpl { display: flex; justify-content: space-between; align-items: center; gap: 10px; margin-bottom: 8px; font: 700 15px var(--mono); }
+.dpl b { font: 600 12px var(--sans); color: var(--muted); text-transform: uppercase; letter-spacing: 1px; }
+.dpb { display: block; height: 12px; border-radius: 6px; background: var(--loss); overflow: hidden; }
+.dpb i { display: block; height: 100%; background: var(--win); }
+
+/* ── лайв ── */
+.lgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(380px, 1fr)); gap: 12px; margin: 16px 0; }
+.live .lh { display: flex; gap: 10px; align-items: center; font-size: 12px; flex-wrap: wrap; }
+.live .lh .r { margin-left: auto; }
+.badge.gold { background: var(--gold); color: #111; }
+.live .ls { display: grid; grid-template-columns: 1fr auto 1fr; gap: 10px; align-items: center; margin: 10px 0 8px; font-weight: 700; }
+.live .lt { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.live .lt.rad { text-align: right; color: var(--win); }
+.live .lt.dire { color: var(--loss); }
+.live .lsc { font-size: 22px; }
+.llead { position: relative; height: 18px; background: var(--surface-3); border-radius: 4px; margin-bottom: 10px; }
+.llead i { position: absolute; top: 0; bottom: 0; }
+.llead span { position: absolute; inset: 0; display: grid; place-items: center; font-size: 11px; color: var(--text); }
+.lteams { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.lteams > div { display: grid; gap: 3px; }
+.lp { display: flex; align-items: center; gap: 6px; font-size: 12px; min-width: 0; padding: 2px; border-radius: 4px; }
+.lp[href]:hover { background: var(--surface-3); }
+.lp img, .lp .lq { width: 36px; height: 20px; border-radius: 3px; object-fit: cover; flex: none; background: var(--surface-3); display: grid; place-items: center; }
+.lp span:last-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.lp .gold { color: var(--gold); font-weight: 600; }
+
+/* ── про ── */
+.pgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 10px; margin: 6px 0 16px; }
+.pro { display: flex; align-items: center; gap: 8px; padding: 10px; border: 1px solid var(--edge); border-radius: var(--r); background: var(--surface); }
+.pro:hover { border-color: var(--accent); }
+.pro .pa { display: flex; gap: 10px; align-items: center; flex: 1; min-width: 0; }
+.pro .pa > div { min-width: 0; }
+.pro .pa b, .pro .pa .muted { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pro img, .pro .noava { width: 44px; height: 44px; border-radius: 8px; flex: none; display: grid; place-items: center; background: var(--surface-3); }
+.pager { display: flex; gap: 12px; align-items: center; justify-content: center; }
+
 @media (max-width: 960px) {
   .g-main, .g3 { grid-template-columns: minmax(0, 1fr); }
 }

@@ -25,6 +25,7 @@ sys.path.insert(0, os.path.dirname(HERE))
 import dota  # noqa: E402  — fetch с кэшем, parse_account_id
 
 WEB = os.path.join(HERE, "web")
+mimetypes.add_type("application/manifest+json", ".webmanifest")
 CONFIG_DIR = os.path.join(os.environ.get("XDG_CONFIG_HOME") or os.path.expanduser("~/.config"),
                           "dota-stats")
 CONFIG = os.path.join(CONFIG_DIR, "config.json")
@@ -212,6 +213,25 @@ def benchmarks(hid):
     return {"hero_id": hid, "result": r.get("result") or {}}
 
 
+def live():
+    """Топовые игры, которые идут прямо сейчас (про и хай-ММР паблики)."""
+    keep = ["match_id", "game_time", "activate_time", "last_update_time", "average_mmr", "league_id", "game_mode",
+            "radiant_score", "dire_score", "radiant_lead", "team_name_radiant", "team_name_dire", "spectators", "sort_score"]
+    out = []
+    for g in dota.fetch("/live", ttl=30):
+        r = {k: g.get(k) for k in keep}
+        r["players"] = [{k: p.get(k) for k in ("account_id", "hero_id", "name", "team", "is_pro")}
+                        for p in g.get("players") or []]
+        out.append(r)
+    return out
+
+
+def pros():
+    keep = ["account_id", "name", "personaname", "avatarfull", "team_name", "team_tag", "country_code",
+            "fantasy_role", "last_match_time", "is_pro"]
+    return [{k: p.get(k) for k in keep} for p in dota.fetch("/proPlayers", ttl=24 * 3600)]
+
+
 PH_PARAMS = ("date", "lobby_type", "game_mode", "hero_id", "lane_role")
 
 
@@ -332,6 +352,10 @@ class Handler(BaseHTTPRequestHandler):
                 return self._send(200, player_bundle(int(m.group(1)), fresh))
             if path == "/api/meta":
                 return self._send(200, meta())
+            if path == "/api/live":
+                return self._send(200, live())
+            if path == "/api/pros":
+                return self._send(200, pros())
             if path == "/api/promatches":
                 return self._send(200, pro_matches())
             m = re.fullmatch(r"/api/benchmarks/(\d+)", path)

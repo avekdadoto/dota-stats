@@ -353,6 +353,8 @@ async function route() {
     if (parts[0] === 'p' && /^\d+$/.test(parts[1])) return await viewPlayer(+parts[1], parts[2] || 'overview', seq);
     if (parts[0] === 'm' && /^\d+$/.test(parts[1])) return await viewMatch(+parts[1], parts[2] ? +parts[2] : null, seq);
     if (parts[0] === 'draft') return await viewDraft(seq);
+    if (parts[0] === 'live') return await viewLive(seq);
+    if (parts[0] === 'pros') return await viewPros(seq);
     if (parts[0] === 'meta') return parts[1] && /^\d+$/.test(parts[1]) ? await viewMetaHero(+parts[1], seq) : await viewMeta(seq);
     if (parts[0] === 'cmp' && /^\d+$/.test(parts[1]) && /^\d+$/.test(parts[2])) return await viewCompare(+parts[1], +parts[2], seq);
     app.innerHTML = '<div class="err"><h3>Нет такой страницы</h3><a class="btn" href="#/">На главную</a></div>';
@@ -393,6 +395,8 @@ function updateMeBtn() {
       <a href="#/p/${id}/wrapped">Мои итоги</a>
       <a href="#/meta">Мета</a>
       <a href="#/draft">Контрпик</a>
+      <a href="#/live">Лайв</a>
+      <a href="#/pros">Про-игроки</a>
       <hr><button id="logout">Выйти</button>
     </div>`;
   const menu = $('#memenu');
@@ -1316,5 +1320,9 @@ document.addEventListener('keydown', e => {
   attachSearch($('#q'), $('#drop'), r => `#/p/${r.account_id}`);
   try { S.cfg = await api('/config'); } catch { S.cfg = {}; }
   try { await steamReturn(); } catch (e) { toast(esc(e.message)); }
+  // ставится как приложение (PWA); на локальном сервере тоже работает
+  if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === '127.0.0.1' || location.hostname === 'localhost')) {
+    navigator.serviceWorker.register('sw.js').catch(() => {});
+  }
   route();
 })();

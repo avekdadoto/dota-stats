@@ -111,6 +111,14 @@ async function renderDraft(seq) {
     return { enemy: d.enemy[i], map };
   });
 
+  // ── шанс победы по драфту: сумма преимуществ своих против врагов + мета обеих сторон → логистика ──
+  const metaA = hid => { const mh = S.meta.byId.get(hid); if (!mh) return 0; const [n, w] = srcPW(mh, br); return shrink(w, n, 2000) - 0.5; };
+  const advVs = hid => vs.reduce((s, v) => s + ((v.map.get(hid) || {}).adv || 0), 0);
+  const enemyMeta = d.enemy.reduce((s, e) => s + metaA(e), 0);
+  const allyScore = d.ally.reduce((s, a) => s + advVs(a) + metaA(a), 0);
+  const prob = x => Math.max(0.1, Math.min(0.9, 1 / (1 + Math.exp(-3 * (x - enemyMeta)))));
+  const nowProb = d.enemy.length && d.ally.length ? prob(allyScore) : null;
+
   const rows = [];
   for (const id of all) {
     if (taken.has(id)) continue;
@@ -126,7 +134,7 @@ async function renderDraft(seq) {
     const myAdv = my ? shrink(my.w, my.n) - 0.5 : 0;
     // контрпики весят больше всего, мета и личный скилл — добавкой
     const score = counter + metaAdv + 0.6 * myAdv;
-    rows.push({ id, per, counter, metaAdv, my, myAdv, score });
+    rows.push({ id, per, counter, metaAdv, my, myAdv, score, win: d.enemy.length ? prob(allyScore + counter + metaAdv) : null });
   }
   rows.sort((a, b) => b.score - a.score);
   const top = rows.slice(0, 15), worst = d.enemy.length ? rows.slice(-5).reverse() : [];
@@ -135,13 +143,17 @@ async function renderDraft(seq) {
   const line = r => `<tr class="click" data-href="#/meta/${r.id}">
       <td>${heroCell(r.id, esc((hero(r.id).roles || []).slice(0, 2).map(x => ROLES_RU[x] || x).join(' · ')), true)}</td>
       <td class="r">${sp(r.score)}</td>
+      ${d.enemy.length ? `<td class="r"><span class="num ${wrCls(r.win)}" data-tip="Шанс победы по драфту, если возьмёшь ${esc(hero(r.id).name)}${nowProb != null ? ` (сейчас ${pct(nowProb, 0)})` : ''}">${pct(r.win, 0)}</span></td>` : ''}
       <td><div class="dvs">${r.per.map(p => `<span data-tip="Против <b>${esc(hero(p.enemy).name)}</b>: ${signPct(p.adv)}<br><span class='k'>${p.g} про-игр</span>"><img src="${esc(heroImg(p.enemy))}" alt=""><i class="${p.adv >= 0 ? 'win' : 'loss'}">${p.g ? signPct(p.adv) : '?'}</i></span>`).join('') || '<span class="muted">—</span>'}</div></td>
       <td class="r" data-tip="Винрейт героя на ${esc(brName(br))} против 50%">${sp(r.metaAdv)}</td>
       ${mine ? `<td class="r" data-tip="${r.my ? `У тебя ${pct(r.my.wr)} на ${r.my.n} играх` : 'Ни разу не брал'}">${r.my ? sp(r.myAdv) + ` <span class="muted num">${r.my.n}</span>` : '<span class="muted">—</span>'}</td>` : ''}
     </tr>`;
-  const head = `<thead><tr><th>Герой</th><th class="r">Итог</th><th>Против врагов</th><th class="r">Мета</th>${mine ? '<th class="r">Ты</th>' : ''}</tr></thead>`;
+  const head = `<thead><tr><th>Герой</th><th class="r">Итог</th>${d.enemy.length ? '<th class="r">Шанс</th>' : ''}<th>Против врагов</th><th class="r">Мета</th>${mine ? '<th class="r">Ты</th>' : ''}</tr></thead>`;
   $('#dsub').textContent = d.enemy.length ? `против ${d.enemy.length} ${plural(d.enemy.length, 'врага', 'врагов', 'врагов')} · мета ${brName(br)}` : `врагов нет — пока просто мета ${brName(br)}${mine ? ' + твой винрейт' : ''}`;
-  $('#dres').innerHTML = `<div class="scroll-x"><table class="tbl">${head}<tbody>${top.map(line).join('')}</tbody></table></div>
+  const probBar = nowProb == null ? '' : `<div class="dprob"><div class="dpl"><span class="win">Свои ${pct(nowProb, 0)}</span><b>Шанс победы по драфту</b><span class="loss">${pct(1 - nowProb, 0)} Враги</span></div>
+    <span class="dpb"><i style="width:${(nowProb * 100).toFixed(1)}%"></i></span>
+    <div class="muted" style="font-size:12px;margin-top:6px">${d.ally.length + d.enemy.length < 9 ? 'Драфт не полный — шанс уточнится, когда пикнут остальные. ' : ''}Оценка по контрпикам про-матчей и мете твоего ранга, не приговор: руки решают больше.</div></div>`;
+  $('#dres').innerHTML = probBar + `<div class="scroll-x"><table class="tbl">${head}<tbody>${top.map(line).join('')}</tbody></table></div>
     ${worst.length ? `<h2 style="margin-top:18px">Лучше не брать <small>больше всего страдают от этих врагов</small></h2>
       <div class="scroll-x"><table class="tbl">${head}<tbody>${worst.map(line).join('')}</tbody></table></div>` : ''}
     <p class="muted" style="font-size:12px;margin:12px 0 0">Итог = сумма преимуществ против каждого врага (про-матчи) + винрейт героя на твоём ранге + твой личный винрейт на нём.

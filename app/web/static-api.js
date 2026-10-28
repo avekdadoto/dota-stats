@@ -159,6 +159,19 @@
     return { hero_id: hid, result: r.result || {} };
   }
 
+  async function live() {
+    const keep = ['match_id', 'game_time', 'activate_time', 'last_update_time', 'average_mmr', 'league_id', 'game_mode',
+      'radiant_score', 'dire_score', 'radiant_lead', 'team_name_radiant', 'team_name_dire', 'spectators', 'sort_score'];
+    return (await od('/live', 30 * 1000)).map(g => Object.assign(pick(g, keep), {
+      players: (g.players || []).map(p => pick(p, ['account_id', 'hero_id', 'name', 'team', 'is_pro'])) }));
+  }
+
+  async function pros() {
+    const keep = ['account_id', 'name', 'personaname', 'avatarfull', 'team_name', 'team_tag', 'country_code',
+      'fantasy_role', 'last_match_time', 'is_pro'];
+    return (await od('/proPlayers', 24 * 3600 * 1000)).map(p => pick(p, keep));
+  }
+
   async function poke(path) {
     try { const r = await fetch(API + path, { method: 'POST' }); return { ok: r.ok }; }
     catch (e) { return { ok: false, message: e.message }; }
@@ -191,6 +204,8 @@
       if ((m = p.match(/^\/player\/(\d+)\/peers$/))) return peers(+m[1]);
       if ((m = p.match(/^\/player\/(\d+)\/heroes$/))) return playerHeroes(+m[1], qs);
       if ((m = p.match(/^\/benchmarks\/(\d+)$/))) return benchmarks(+m[1]);
+      if (p === '/live') return live();
+      if (p === '/pros') return pros();
       if (p === '/meta') return meta();
       if (p === '/promatches') return proMatches();
       if ((m = p.match(/^\/meta\/hero\/(\d+)$/))) return metaHero(+m[1]);

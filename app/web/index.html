@@ -6,6 +6,9 @@
 <title>Dota Stats by avekda</title>
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='6' fill='%23d63a2f'/><text x='16' y='23' font-size='18' font-family='monospace' font-weight='bold' fill='white' text-anchor='middle'>D</text></svg>">
 <link rel="stylesheet" href="style.css">
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#d63a2f">
+<link rel="apple-touch-icon" href="icon.svg">
 </head>
 <body>
 <header class="top">
@@ -16,6 +19,8 @@
     <div class="drop" id="drop"></div>
   </div>
   <div class="spacer"></div>
+  <a class="btn" id="livebtn" href="#/live" title="Топовые игры прямо сейчас"><i class="dot"></i><span>Лайв</span></a>
+  <a class="btn" id="probtn" href="#/pros" title="Про-игроки">★ <span>Про</span></a>
   <a class="btn" id="draftbtn" href="#/draft" title="Подскажу, кого пикнуть против врагов">⚑ Контрпик</a>
   <a class="btn" id="metabtn" href="#/meta" title="Мета героев: про-сцена и паблики">⚔ Мета</a>
   <div class="acct" id="acct"></div>
@@ -31,5 +36,6 @@
 <script src="wrapped.js"></script>
 <script src="goals.js"></script>
 <script src="mmr.js"></script>
+<script src="live.js"></script>
 </body>
 </html>

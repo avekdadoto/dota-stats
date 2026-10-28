@@ -1,0 +1,15 @@
+{
+  "name": "Dota Stats by avekda",
+  "short_name": "Dota Stats",
+  "description": "Свой дотабафф: стата, мета, контрпик, скилл, тильт-детектор",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#0b0c0f",
+  "theme_color": "#d63a2f",
+  "lang": "ru",
+  "icons": [
+    { "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" },
+    { "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "maskable" }
+  ]
+}
