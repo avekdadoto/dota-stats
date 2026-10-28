@@ -10,7 +10,10 @@ dota.py — личный анализатор Dota 2.
 Никаких читов, никакого вмешательства в игру.
 
 Запуск:
-    python3 dota.py <твой_Dota_ID>
+    python3 dota.py <твой_Dota_ID>                 # полный отчёт + report.html
+    python3 dota.py <ID> --vs <ID_кента>           # сравнить двух игроков
+    python3 dota.py --match <match_id> [--me <ID>] # разбор конкретного матча
+    --no-cache  — не брать ответы из кэша, дёрнуть API заново
 
 ID можно взять так: в доте профиль -> это "Friend ID" (число).
 Или вставь ссылку на свой профиль opendota/dotabuff, скрипт сам вытащит ID.
@@ -18,8 +21,12 @@ ID можно взять так: в доте профиль -> это "Friend ID
 Зависимостей нет — только стандартная библиотека Python 3.
 """
 
+import os
 import sys
 import re
+import hashlib
+import threading
+import argparse
 import json
 import time
 import html
@@ -30,6 +37,13 @@ import urllib.error
 API = "https://api.opendota.com/api"
 TIMEOUT = 15
 MIN_GAMES = 15   # минимум игр на герое, чтобы его винрейт считался надёжным
+
+# Кэш ответов API: профиль меняется редко, а лимит у OpenDota 60 запросов в минуту.
+CACHE_DIR = os.path.join(os.environ.get("XDG_CACHE_HOME") or os.path.expanduser("~/.cache"),
+                         "dota-stats")
+CACHE_TTL = 30 * 60          # данные игрока — полчаса
+MATCH_TTL = 7 * 24 * 3600    # сыгранный матч уже не поменяется (кроме парсинга) — неделя
+USE_CACHE = True
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Справочник героев вшит прямо сюда (id -> (имя, атрибут)), чтобы не делать
@@ -84,6 +98,20 @@ STEAM64_BASE = 76561197960265728  # для перевода steamID64 -> account
 # ─────────────────────────────────────────────────────────────────────────────
 # Утилиты
 # ─────────────────────────────────────────────────────────────────────────────
+def plural(n, one, few, many):
+    """1 победа, 2 победы, 5 побед."""
+    n = abs(n) % 100
+    if 11 <= n <= 19:
+        return many
+    n %= 10
+    return one if n == 1 else (few if 2 <= n <= 4 else many)
+
+
+def streak_word(n, won):
+    return plural(n, "победа", "победы", "побед") if won else \
+        plural(n, "поражение", "поражения", "поражений")
+
+
 def hero_name(hid):
     return HEROES.get(hid, (f"Hero #{hid}", "all"))[0]
 
@@ -107,21 +135,46 @@ def parse_account_id(raw):
     return n
 
 
-def fetch(path):
-    """GET к OpenDota, возвращает разобранный JSON. Бросает понятную ошибку."""
+def _cache_file(path):
+    return os.path.join(CACHE_DIR, hashlib.sha1(path.encode()).hexdigest() + ".json")
+
+
+def fetch(path, ttl=CACHE_TTL):
+    """GET к OpenDota с кэшем на диске, возвращает разобранный JSON."""
+    cf = _cache_file(path)
+    if USE_CACHE:
+        try:
+            if time.time() - os.path.getmtime(cf) < ttl:
+                with open(cf, encoding="utf-8") as fp:
+                    return json.load(fp)
+        except (OSError, json.JSONDecodeError):
+            pass  # нет кэша или он битый — идём в сеть
+
     url = f"{API}{path}"
     req = urllib.request.Request(url, headers={"User-Agent": "dota-stats/1.0 (personal)"})
     try:
         with urllib.request.urlopen(req, timeout=TIMEOUT) as r:
-            return json.loads(r.read().decode("utf-8"))
+            data = json.loads(r.read().decode("utf-8"))
     except urllib.error.HTTPError as e:
         if e.code == 429:
             raise RuntimeError("OpenDota просит сбавить темп (лимит запросов). Подожди минуту.")
+        if e.code == 404:
+            raise RuntimeError(f"OpenDota не нашёл такого: {path}")
         raise RuntimeError(f"Сервер вернул ошибку {e.code} на {path}")
     except urllib.error.URLError as e:
         raise RuntimeError(f"Нет связи с OpenDota: {e.reason}")
     except json.JSONDecodeError:
         raise RuntimeError(f"OpenDota прислал мусор вместо данных на {path}")
+
+    try:
+        os.makedirs(CACHE_DIR, exist_ok=True)
+        tmp = f"{cf}.{os.getpid()}.{threading.get_ident()}.tmp"  # уникально для потоков сервера
+        with open(tmp, "w", encoding="utf-8") as fp:
+            json.dump(data, fp)
+        os.replace(tmp, cf)
+    except OSError:
+        pass  # не смогли записать кэш — похуй, данные всё равно есть
+    return data
 
 
 def wilson_lower(wins, n, z=1.96):
@@ -168,6 +221,7 @@ def analyse(account_id):
     wl = fetch(f"/players/{account_id}/wl")
     heroes = fetch(f"/players/{account_id}/heroes")
     recent = fetch(f"/players/{account_id}/recentMatches")
+    counts = fetch(f"/players/{account_id}/counts")
 
     prof = player["profile"]
     wins, losses = wl.get("win", 0), wl.get("lose", 0)
@@ -202,6 +256,7 @@ def analyse(account_id):
 
     # ── недавняя форма ──
     form = analyse_recent(recent)
+    positions = analyse_positions(counts)
 
     return {
         "account_id": account_id,
@@ -216,7 +271,33 @@ def analyse(account_id):
         "spam": spam,
         "avoid": avoid,
         "form": form,
+        "positions": positions,
+        "hero_rows": hero_rows,
     }
+
+
+def analyse_positions(counts):
+    """Винрейт по линиям. OpenDota знает линию только у распарсенных матчей."""
+    lanes = (counts or {}).get("lane_role", {})
+    rows = []
+    for key, v in lanes.items():
+        lr = int(key)
+        g, w = v.get("games", 0), v.get("win", 0)
+        if lr not in LANE_ROLE or g <= 0:
+            continue
+        rows.append({"role": LANE_ROLE[lr], "games": g, "wins": w,
+                     "wr": w / g * 100, "score": wilson_lower(w, g)})
+    if not rows:
+        return None
+    rows.sort(key=lambda x: x["games"], reverse=True)
+    known = sum(r["games"] for r in rows)
+    unknown = lanes.get("0", {}).get("games", 0)
+    solid = [r for r in rows if r["games"] >= max(MIN_GAMES, 50)]
+    best = max(solid, key=lambda x: x["score"]) if solid else None
+    worst = min(solid, key=lambda x: x["wr"]) if len(solid) > 1 else None
+    return {"rows": rows, "known": known, "unknown": unknown,
+            "best": best["role"] if best else None,
+            "worst": worst["role"] if worst and worst is not best else None}
 
 
 def analyse_recent(recent, limit=20):
@@ -302,7 +383,7 @@ def print_report(d):
     if f:
         strip = "".join(C.grn("W") if r else C.red("L") for r in f["results"])
         streak_s = (C.grn if f["streak_won"] else C.red)(
-            f"{f['streak']} {'побед' if f['streak_won'] else 'поражений'} подряд")
+            f"{f['streak']} {streak_word(f['streak'], f['streak_won'])} подряд")
         print()
         print(C.bold("  Последние матчи (свежие слева):"))
         print(f"    {strip}   {wr_color(f['winrate'])}")
@@ -310,6 +391,18 @@ def print_report(d):
               f"({f['avg_k']:.1f}/{f['avg_d']:.1f}/{f['avg_a']:.1f})")
         print(f"    GPM {f['gpm']:.0f}  ·  XPM {f['xpm']:.0f}  ·  крипов {f['lh']:.0f}/матч  "
               f"·  чаще играл: {f['role']}")
+
+    pos = d.get("positions")
+    if pos:
+        print()
+        print(C.bold("  Винрейт по линиям:") + C.dim(f"  (известна линия у {pos['known']} матчей)"))
+        for r in pos["rows"]:
+            mark = ""
+            if r["role"] == pos["best"]:
+                mark = C.grn("  ← твоё")
+            elif r["role"] == pos["worst"]:
+                mark = C.red("  ← не твоё")
+            print(f"    {r['role']:<20} {r['games']:>4} игр  {bar_str(r['wr'])} {wr_color(r['wr'])}{mark}")
 
     print()
     print(C.bold("  Самые заигранные герои:"))
@@ -377,13 +470,13 @@ def build_html(d):
     if f:
         squares = "".join(f'<span class="sq {"w" if r else "l"}"></span>' for r in f["results"])
         streak_cls = "good" if f["streak_won"] else "bad"
-        streak_word = "побед" if f["streak_won"] else "поражений"
+        sw = streak_word(f["streak"], f["streak_won"])
         form_html = f"""
       <section class="card form">
         <h2>Последняя форма <small>{f['n']} матчей</small></h2>
         <div class="squares">{squares}</div>
         <div class="formstats">
-          <div><span class="big {streak_cls}">{f['streak']}</span><label>{streak_word} подряд</label></div>
+          <div><span class="big {streak_cls}">{f['streak']}</span><label>{sw} подряд</label></div>
           <div><span class="big">{f['winrate']:.0f}%</span><label>винрейт</label></div>
           <div><span class="big">{f['kda']:.2f}</span><label>KDA</label></div>
           <div><span class="big">{f['gpm']:.0f}</span><label>GPM</label></div>
@@ -391,6 +484,30 @@ def build_html(d):
           <div><span class="big">{f['lh']:.0f}</span><label>крипов/матч</label></div>
         </div>
         <p class="role">Последнее время чаще всего: <b>{esc(f['role'])}</b></p>
+      </section>"""
+
+    pos_html = ""
+    pos = d.get("positions")
+    if pos:
+        prow = []
+        for r in pos["rows"]:
+            tag = ""
+            if r["role"] == pos["best"]:
+                tag = ' <em class="tag good">твоё</em>'
+            elif r["role"] == pos["worst"]:
+                tag = ' <em class="tag bad">не твоё</em>'
+            band = "good" if r["wr"] >= 53 else ("bad" if r["wr"] < 47 else "mid")
+            prow.append(f"""
+        <div class="hrow">
+          <span class="hname">{esc(r['role'])}{tag}</span>
+          <span class="hgames">{r['games']} игр</span>
+          <span class="hbar"><i class="{band}" style="width:{min(100, r['wr']):.0f}%"></i></span>
+          <span class="hwr {band}">{r['wr']:.1f}%</span>
+        </div>""")
+        pos_html = f"""
+      <section class="card">
+        <h2>Винрейт по линиям <small>линия известна у {pos['known']} матчей</small></h2>
+        {''.join(prow)}
       </section>"""
 
     wr = d["winrate"]
@@ -452,6 +569,7 @@ body{{margin:0;background:
 .advice li em{{grid-column:1/-1;color:var(--dim);font-size:11px;font-style:normal}}
 .advice li.empty{{color:var(--dim);display:block;font-size:13px}}
 .advice .lead{{font-size:13px;color:var(--dim);margin:0 0 12px}}
+.tag{{font-style:normal;font-size:11px;margin-left:6px;padding:1px 6px;border-radius:5px;background:#0f1117}}
 .foot{{color:var(--dim);font-size:12px;text-align:center;line-height:1.7}}
 .foot b{{color:var(--gold)}}
 @media(max-width:720px){{.grid{{grid-template-columns:1fr}}
@@ -473,6 +591,8 @@ body{{margin:0;background:
   </header>
 
   {form_html}
+
+  {pos_html}
 
   <section class="card">
     <h2>Самые заигранные герои</h2>
@@ -502,31 +622,277 @@ body{{margin:0;background:
 
 
 # ─────────────────────────────────────────────────────────────────────────────
+# Разбор конкретного матча
+# ─────────────────────────────────────────────────────────────────────────────
+def fmt_dur(sec):
+    return f"{sec // 60}:{sec % 60:02d}"
+
+
+def fmt_k(n):
+    return f"{n / 1000:.1f}k" if n >= 1000 else str(n)
+
+
+def impact(p):
+    """Грубая оценка вклада игрока, чтобы назвать MVP команды. Не истина, а прикидка."""
+    return (p.get("kills", 0) * 2 + p.get("assists", 0) - p.get("deaths", 0) * 1.5
+            + (p.get("hero_damage") or 0) / 2000 + (p.get("tower_damage") or 0) / 1000
+            + (p.get("hero_healing") or 0) / 2000 + (p.get("net_worth") or 0) / 4000)
+
+
+def analyse_match(match_id, me=None):
+    m = fetch(f"/matches/{match_id}", ttl=MATCH_TTL)
+    players = m.get("players") or []
+    if not players:
+        raise RuntimeError("В матче нет игроков — OpenDota его ещё не обработал. Попробуй позже.")
+
+    teams = {True: [], False: []}
+    for p in players:
+        teams[bool(p.get("isRadiant", p.get("player_slot", 0) < 128))].append(p)
+
+    res = {
+        "id": match_id,
+        "radiant_win": m.get("radiant_win"),
+        "duration": m.get("duration", 0),
+        "score": (m.get("radiant_score", 0), m.get("dire_score", 0)),
+        "start": m.get("start_time", 0),
+        "parsed": bool(m.get("version")),
+        "teams": teams,
+        "mvp": {side: max(ps, key=impact) for side, ps in teams.items() if ps},
+        "me": None,
+    }
+
+    if me:
+        mine = next((p for p in players if p.get("account_id") == me), None)
+        if mine:
+            side = bool(mine.get("isRadiant", mine.get("player_slot", 0) < 128))
+            team = teams[side]
+            team_kills = sum(p.get("kills", 0) for p in team) or 1
+
+            def place(key):
+                order = sorted(team, key=lambda p: p.get(key) or 0, reverse=True)
+                return order.index(mine) + 1
+
+            def avg(key):
+                others = [p.get(key) or 0 for p in team if p is not mine]
+                return sum(others) / max(1, len(others))
+
+            res["me"] = {
+                "p": mine,
+                "won": side == res["radiant_win"],
+                "kp": (mine.get("kills", 0) + mine.get("assists", 0)) / team_kills * 100,
+                "nw_place": place("net_worth"),
+                "dmg_place": place("hero_damage"),
+                "gpm_vs": (mine.get("gold_per_min") or 0) - avg("gold_per_min"),
+                "deaths_vs": (mine.get("deaths") or 0) - avg("deaths"),
+                "is_mvp": res["mvp"].get(side) is mine,
+            }
+        else:
+            res["me_missing"] = me
+    return res
+
+
+def print_match(r):
+    line = "─" * 78
+    rw = r["radiant_win"]
+    when = time.strftime("%Y-%m-%d %H:%M", time.localtime(r["start"])) if r["start"] else "?"
+    print()
+    print(C.bold(C.cyn(f"  Матч {r['id']}")) + C.dim(f"   {when}   длительность {fmt_dur(r['duration'])}"))
+    winner = C.grn("Radiant") if rw else C.red("Dire")
+    print(f"  Победили: {winner}   ·   счёт {r['score'][0]} : {r['score'][1]}"
+          + ("" if r["parsed"] else C.dim("   (матч не распарсен — часть цифр может быть пустой)")))
+    me_id = r["me"]["p"].get("account_id") if r["me"] else None
+
+    for side in (True, False):
+        team = r["teams"][side]
+        if not team:
+            continue
+        won = side == rw
+        title = ("Radiant" if side else "Dire") + ("  — ПОБЕДА" if won else "  — слив")
+        print(line)
+        print(C.bold((C.grn if won else C.red)(f"  {title}")))
+        print(C.dim(f"    {'герой':<18} {'игрок':<14} {'K/D/A':>9} {'LH/DN':>8} "
+                    f"{'GPM':>4} {'XPM':>4} {'NW':>6} {'урон':>6}"))
+        mvp = r["mvp"].get(side)
+        for p in sorted(team, key=lambda p: p.get("net_worth") or 0, reverse=True):
+            name = (p.get("personaname") or "аноним")[:14]
+            kda = f"{p.get('kills', 0)}/{p.get('deaths', 0)}/{p.get('assists', 0)}"
+            row = (f"    {hero_name(p.get('hero_id')):<18} {name:<14} {kda:>9} "
+                   f"{str(p.get('last_hits', 0)) + '/' + str(p.get('denies', 0)):>8} "
+                   f"{p.get('gold_per_min', 0):>4} {p.get('xp_per_min', 0):>4} "
+                   f"{fmt_k(p.get('net_worth') or 0):>6} {fmt_k(p.get('hero_damage') or 0):>6}")
+            if p is mvp:
+                row += C.yel("  ★MVP")
+            if me_id and p.get("account_id") == me_id:
+                row = C.bold(row) + C.cyn("  ← ты")
+            print(row)
+    print(line)
+
+    me = r["me"]
+    if me:
+        p = me["p"]
+        print(C.bold(f"  Разбор тебя ({hero_name(p.get('hero_id'))}):"))
+        print(f"    исход: {C.grn('победа') if me['won'] else C.red('поражение')}"
+              f"   ·   участие в убийствах: {me['kp']:.0f}%")
+        print(f"    по нетворсу {me['nw_place']}-й в команде, по урону {me['dmg_place']}-й")
+        gv, dv = me["gpm_vs"], me["deaths_vs"]
+        print(f"    GPM {'+' if gv >= 0 else ''}{gv:.0f} к среднему по тиме   ·   "
+              f"смертей {'+' if dv >= 0 else ''}{dv:.1f} к среднему")
+        print("    вердикт: " + match_verdict(me))
+    elif r.get("me_missing"):
+        print(C.yel(f"  Игрока {r['me_missing']} в этом матче нет (или у него скрыт профиль)."))
+    print()
+
+
+def match_verdict(me):
+    if me["is_mvp"]:
+        return C.grn("ты тащил эту катку, MVP команды") if me["won"] else \
+            C.yel("ты был лучшим в тиме, но остальные слили — не твоя вина")
+    bad = []
+    if me["deaths_vs"] >= 3:
+        bad.append("слишком много помирал")
+    if me["kp"] < 35:
+        bad.append("мало участвовал в драках")
+    if me["gpm_vs"] < -100 and me["nw_place"] >= 4:
+        bad.append("плохо фармил")
+    if not bad:
+        return C.yel("норм отыграл, без косяков") if not me["won"] else C.grn("нормально, вывезли")
+    return C.red(", ".join(bad))
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Сравнение двух игроков
+# ─────────────────────────────────────────────────────────────────────────────
+def compare(id_a, id_b):
+    a = analyse(id_a)
+    b = analyse(id_b)
+    peers = fetch(f"/players/{id_a}/peers")
+    peer = next((p for p in peers if p.get("account_id") == id_b), None)
+
+    ha = {h["id"]: h for h in a["hero_rows"]}
+    hb = {h["id"]: h for h in b["hero_rows"]}
+    common = [(ha[i], hb[i]) for i in ha.keys() & hb.keys()
+              if ha[i]["games"] >= 5 and hb[i]["games"] >= 5]
+    common.sort(key=lambda x: x[0]["games"] + x[1]["games"], reverse=True)
+    return {"a": a, "b": b, "peer": peer, "common": common[:8]}
+
+
+def print_compare(c):
+    a, b = c["a"], c["b"]
+    line = "─" * 64
+    W = 20
+
+    def row(label, va, vb, num_a=None, num_b=None, higher_better=True):
+        sa, sb = str(va), str(vb)
+        if num_a is not None and num_b is not None and num_a != num_b:
+            a_wins = (num_a > num_b) == higher_better
+            sa = C.grn(sa) if a_wins else sa
+            sb = sb if a_wins else C.grn(sb)
+        pad_a = W - len(str(va))
+        print(f"  {label:<18} {sa}{' ' * max(1, pad_a)} {sb}")
+
+    print()
+    print(C.bold(f"  {'':<18} {a['name'][:W]:<{W}} {b['name'][:W]}"))
+    print(line)
+    row("медаль", a["medal"], b["medal"])
+    row("игр всего", a["total"], b["total"], a["total"], b["total"])
+    row("винрейт", f"{a['winrate']:.1f}%", f"{b['winrate']:.1f}%", a["winrate"], b["winrate"])
+    row("героев сыграно", a["unique_heroes"], b["unique_heroes"])
+    fa, fb = a["form"], b["form"]
+    if fa and fb:
+        row("форма (20 игр)", f"{fa['winrate']:.0f}%", f"{fb['winrate']:.0f}%", fa["winrate"], fb["winrate"])
+        row("KDA", f"{fa['kda']:.2f}", f"{fb['kda']:.2f}", fa["kda"], fb["kda"])
+        row("GPM", f"{fa['gpm']:.0f}", f"{fb['gpm']:.0f}", fa["gpm"], fb["gpm"])
+        row("XPM", f"{fa['xpm']:.0f}", f"{fb['xpm']:.0f}", fa["xpm"], fb["xpm"])
+        row("смертей/матч", f"{fa['avg_d']:.1f}", f"{fb['avg_d']:.1f}", fa["avg_d"], fb["avg_d"], False)
+        row("частая роль", fa["role"], fb["role"])
+    ta = a["most_played"][0]["name"] if a["most_played"] else "—"
+    tb = b["most_played"][0]["name"] if b["most_played"] else "—"
+    row("главный герой", ta, tb)
+    sa = a["spam"][0]["name"] if a["spam"] else "—"
+    sb = b["spam"][0]["name"] if b["spam"] else "—"
+    row("лучший герой", sa, sb)
+
+    print(line)
+    p = c["peer"]
+    if p and (p.get("with_games") or p.get("against_games")):
+        wg, ww = p.get("with_games", 0), p.get("with_win", 0)
+        ag, aw = p.get("against_games", 0), p.get("against_win", 0)
+        if wg:
+            print(f"  Вместе в одной тиме: {wg} игр, винрейт {wr_color(ww / wg * 100)}")
+        if ag:
+            print(f"  Друг против друга:   {ag} игр, {a['name'][:16]} выиграл {aw}, "
+                  f"{b['name'][:16]} выиграл {ag - aw}")
+    else:
+        print(C.dim("  Вместе не играли (по крайней мере OpenDota такого не видел)."))
+
+    if c["common"]:
+        print()
+        print(C.bold("  Общие герои — кто на них лучше:"))
+        for x, y in c["common"]:
+            better = a["name"] if x["wr"] > y["wr"] else b["name"]
+            print(f"    {x['name']:<20} {wr_color(x['wr'])} ({x['games']:>4})   vs   "
+                  f"{wr_color(y['wr'])} ({y['games']:>4})   " + C.dim(f"→ {better[:16]}"))
+    print()
+
+
+# ─────────────────────────────────────────────────────────────────────────────
 # main
 # ─────────────────────────────────────────────────────────────────────────────
 def main():
-    if len(sys.argv) < 2:
-        print(__doc__)
-        print("Пример:  python3 dota.py 70388657")
-        sys.exit(1)
+    global USE_CACHE
+    ap = argparse.ArgumentParser(
+        description="Личный анализатор Dota 2 на публичном API OpenDota.",
+        epilog="Примеры:  dota.py 70388657  |  dota.py 70388657 --vs 89625472  |  "
+               "dota.py --match 9054542608 --me 70388657")
+    ap.add_argument("player", nargs="?", help="Friend ID, steamID64 или ссылка на профиль")
+    ap.add_argument("--vs", metavar="ID", help="сравнить с другим игроком")
+    ap.add_argument("--match", metavar="MATCH_ID", help="разобрать конкретный матч")
+    ap.add_argument("--me", metavar="ID", help="кто ты в этом матче (по умолчанию — player)")
+    ap.add_argument("--no-cache", action="store_true", help="игнорировать кэш")
+    ap.add_argument("--no-html", action="store_true", help="не сохранять report.html")
+    args = ap.parse_args()
+    USE_CACHE = not args.no_cache
 
-    account_id = parse_account_id(sys.argv[1])
-    if not account_id:
-        print("Не понял ID. Дай Friend ID (число) или ссылку на профиль opendota/dotabuff.")
-        sys.exit(1)
+    def pid(raw, what="ID"):
+        v = parse_account_id(raw)
+        if not v:
+            print(f"Не понял {what}: {raw!r}. Дай Friend ID (число) или ссылку на профиль.")
+            sys.exit(1)
+        return v
 
     try:
+        if args.match:
+            mid = re.findall(r"\d+", args.match)
+            if not mid:
+                print(f"Не понял match_id: {args.match!r}")
+                sys.exit(1)
+            me_raw = args.me or args.player
+            me = pid(me_raw) if me_raw else None
+            mid = int(max(mid, key=len))
+            print(f"[*] Тяну матч {mid} ...", file=sys.stderr)
+            print_match(analyse_match(mid, me))
+            return
+
+        if not args.player:
+            ap.print_help()
+            sys.exit(1)
+        account_id = pid(args.player)
+
+        if args.vs:
+            print_compare(compare(account_id, pid(args.vs, "второй ID")))
+            return
+
         data = analyse(account_id)
     except RuntimeError as e:
         print(f"[!] {e}")
         sys.exit(2)
 
     print_report(data)
-
+    if args.no_html:
+        return
     out = "report.html"
     with open(out, "w", encoding="utf-8") as fp:
         fp.write(build_html(data))
-    import os
     print(f"\n[*] Красивый отчёт сохранён: {os.path.abspath(out)}")
     print("    Открой его в браузере:  xdg-open report.html")
 

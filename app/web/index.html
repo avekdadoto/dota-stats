@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Dota Stats by avekda</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='6' fill='%23d63a2f'/><text x='16' y='23' font-size='18' font-family='monospace' font-weight='bold' fill='white' text-anchor='middle'>D</text></svg>">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="top">
+  <a class="logo" href="#/"><b>D</b><span>DOTA STATS <em class="by">by avekda</em></span></a>
+  <div class="search">
+    <span class="ico">⌕</span>
+    <input id="q" placeholder="Ник, Friend ID, ссылка на профиль или match ID…" autocomplete="off" spellcheck="false">
+    <div class="drop" id="drop"></div>
+  </div>
+  <div class="spacer"></div>
+  <a class="btn" id="mebtn" href="#/" title="Мой профиль">◉ Я</a>
+</header>
+<main id="app"></main>
+<div class="tip" id="tip"></div>
+<script src="static-api.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
