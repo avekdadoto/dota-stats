@@ -350,6 +350,7 @@ async function route() {
       return viewSetup();
     }
     if (parts[0] === 'setup') return viewSetup();
+    if (parts[0] === 'p' && /^\d+$/.test(parts[1]) && parts[2] === 'hero' && /^\d+$/.test(parts[3] || '')) return await viewMyHero(+parts[1], +parts[3], seq);
     if (parts[0] === 'p' && /^\d+$/.test(parts[1])) return await viewPlayer(+parts[1], parts[2] || 'overview', seq);
     if (parts[0] === 'm' && /^\d+$/.test(parts[1])) return await viewMatch(+parts[1], parts[2] ? +parts[2] : null, seq);
     if (parts[0] === 'draft') return await viewDraft(seq);
@@ -692,6 +693,7 @@ function tabOverview(box, p, list, id) {
     <h2>Активность за год</h2>
     ${heatmap(p.list, id)}
   </section>`;
+  $('#tophero tbody', box).onclick = e => { const tr = e.target.closest('[data-hero]'); if (tr) location.hash = `#/p/${id}/hero/${tr.dataset.hero}`; };
   bindRowLinks(box);
 }
 
@@ -849,7 +851,7 @@ function tabHeroes(box, p, list, id) {
       <input class="inp" id="hq" placeholder="Найти героя…" value="${esc(S.heroQ || '')}" style="width:220px">
       <label class="muted">мин. матчей</label>
       <select id="hmin">${[1, 5, 10, 25, 50, 100].map(n => `<option ${n === minN ? 'selected' : ''}>${n}</option>`).join('')}</select>
-      <span class="muted" style="margin-left:auto;font-size:12px">${hs.length} ${plural(hs.length, 'герой', 'героя', 'героев')} · клик по герою → его матчи</span>
+      <span class="muted" style="margin-left:auto;font-size:12px">${hs.length} ${plural(hs.length, 'герой', 'героя', 'героев')} · клик по герою → твоё досье на нём</span>
     </div>
     <div class="scroll-x"><table class="tbl">
       <thead><tr><th>Герой</th>${HERO_COLS.map(([k, n]) => `<th class="sortable${k === 'wr' ? '' : ' r'}${key === k ? ' sorted' + (asc ? ' asc' : '') : ''}" data-k="${k}">${n}</th>`).join('')}</tr></thead>
@@ -865,7 +867,7 @@ function tabHeroes(box, p, list, id) {
   $('#hmin', box).onchange = e => { S.heroMin = +e.target.value; tabHeroes(box, p, list, id); };
   box.querySelector('tbody').onclick = e => {
     const tr = e.target.closest('[data-hero]');
-    if (tr) { S.filters.hero = tr.dataset.hero; S.page = 0; lsSet('filters', S.filters); location.hash = `#/p/${id}/matches`; }
+    if (tr) location.hash = `#/p/${id}/hero/${tr.dataset.hero}`;
   };
 }
 

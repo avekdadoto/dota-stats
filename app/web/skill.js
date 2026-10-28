@@ -165,7 +165,7 @@ async function tabSkill(box, p, list, id, seq) {
         <div class="insights">${ins.map(i => `<div class="ins ${i.cls}"><span class="i">${i.icon}</span><div><b>${esc(i.title)}</b><div class="t">${esc(i.text)}</div></div></div>`).join('')}</div>
       </section>
     </div>
-    <section class="card" style="margin-top:16px"><h2>По героям <small>твой перцентиль по каждой стате, клик — матчи на герое</small></h2>
+    <section class="card" style="margin-top:16px"><h2>По героям <small>твой перцентиль по каждой стате, клик — досье на герое</small></h2>
       <div class="scroll-x"><table class="tbl" id="skh"><thead><tr><th>Герой</th><th class="r">Игр</th><th class="r">Винрейт</th><th class="r">Уровень</th>${statCols.map(([, n]) => `<th class="r">${esc(n)}</th>`).join('')}</tr></thead>
       <tbody>${byHero.map(h => `<tr class="click" data-hero="${h.hid}"><td>${heroCell(h.hid, '', true)}</td><td class="num r">${h.n}</td>
         <td class="num r ${wrCls(h.wr)}">${pct(h.wr, 0)}</td>${pctCell(h.core)}${statCols.map(([k]) => pctCell(h.pcs[k])).join('')}</tr>`).join('')}</tbody></table></div>
@@ -174,7 +174,7 @@ async function tabSkill(box, p, list, id, seq) {
     </section>`;
   $('#skh tbody', box).onclick = e => {
     const tr = e.target.closest('[data-hero]');
-    if (tr) { S.filters.hero = tr.dataset.hero; S.page = 0; lsSet('filters', S.filters); location.hash = `#/p/${id}/matches`; }
+    if (tr) location.hash = `#/p/${id}/hero/${tr.dataset.hero}`;
   };
   drawCharts();
 }
