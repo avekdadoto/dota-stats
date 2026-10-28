@@ -154,6 +154,11 @@
     return (await od(`/players/${aid}/heroes${q ? '?' + q : ''}`)).map(r => pick(r, keep));
   }
 
+  async function benchmarks(hid) {
+    const r = await od(`/benchmarks?hero_id=${hid}`, WEEK, true);
+    return { hero_id: hid, result: r.result || {} };
+  }
+
   async function poke(path) {
     try { const r = await fetch(API + path, { method: 'POST' }); return { ok: r.ok }; }
     catch (e) { return { ok: false, message: e.message }; }
@@ -185,6 +190,7 @@
       if ((m = p.match(/^\/player\/(\d+)$/))) return playerBundle(+m[1], qs.get('fresh') === '1');
       if ((m = p.match(/^\/player\/(\d+)\/peers$/))) return peers(+m[1]);
       if ((m = p.match(/^\/player\/(\d+)\/heroes$/))) return playerHeroes(+m[1], qs);
+      if ((m = p.match(/^\/benchmarks\/(\d+)$/))) return benchmarks(+m[1]);
       if (p === '/meta') return meta();
       if (p === '/promatches') return proMatches();
       if ((m = p.match(/^\/meta\/hero\/(\d+)$/))) return metaHero(+m[1]);

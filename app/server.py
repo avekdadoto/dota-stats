@@ -206,6 +206,12 @@ def pro_matches():
     return [{k: m.get(k) for k in keep} for m in dota.fetch("/proMatches", ttl=600)[:40]]
 
 
+def benchmarks(hid):
+    """Перцентили статы всех игроков на герое: GPM, XPM, крипы/мин и т.д."""
+    r = dota.fetch(f"/benchmarks?hero_id={hid}", ttl=WEEK)
+    return {"hero_id": hid, "result": r.get("result") or {}}
+
+
 PH_PARAMS = ("date", "lobby_type", "game_mode", "hero_id", "lane_role")
 
 
@@ -328,6 +334,9 @@ class Handler(BaseHTTPRequestHandler):
                 return self._send(200, meta())
             if path == "/api/promatches":
                 return self._send(200, pro_matches())
+            m = re.fullmatch(r"/api/benchmarks/(\d+)", path)
+            if m:
+                return self._send(200, benchmarks(int(m.group(1))))
             m = re.fullmatch(r"/api/meta/hero/(\d+)", path)
             if m:
                 return self._send(200, meta_hero(int(m.group(1))))
