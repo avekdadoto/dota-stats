@@ -351,6 +351,7 @@ async function route() {
     if (parts[0] === 'setup') return viewSetup();
     if (parts[0] === 'p' && /^\d+$/.test(parts[1])) return await viewPlayer(+parts[1], parts[2] || 'overview', seq);
     if (parts[0] === 'm' && /^\d+$/.test(parts[1])) return await viewMatch(+parts[1], parts[2] ? +parts[2] : null, seq);
+    if (parts[0] === 'meta') return parts[1] && /^\d+$/.test(parts[1]) ? await viewMetaHero(+parts[1], seq) : await viewMeta(seq);
     if (parts[0] === 'cmp' && /^\d+$/.test(parts[1]) && /^\d+$/.test(parts[2])) return await viewCompare(+parts[1], +parts[2], seq);
     app.innerHTML = '<div class="err"><h3>Нет такой страницы</h3><a class="btn" href="#/">На главную</a></div>';
   } catch (e) {
@@ -413,11 +414,12 @@ function viewSetup() {
 // Страница игрока
 // ─────────────────────────────────────────────────────────────────────────────
 const TABS = [['overview', 'Обзор'], ['matches', 'Матчи'], ['heroes', 'Герои'], ['records', 'Рекорды'],
-  ['trends', 'Тренды'], ['peers', 'Друзья'], ['compare', 'Сравнить']];
+  ['trends', 'Тренды'], ['matchups', 'Матчапы'], ['peers', 'Друзья'], ['compare', 'Сравнить']];
 
 async function viewPlayer(id, tab, seq) {
   if (!S.players.has(id)) loading('Тяну всю историю матчей… в первый раз секунд 5–10, потом из кэша мгновенно');
   const p = await loadPlayer(id);
+  if (['overview', 'heroes'].includes(tab)) await loadMeta(true); // для «против меты», не критично
   if (seq !== routeSeq) return;
   const isMe = S.cfg.account_id === id;
   const fav = (S.cfg.favorites || []).includes(id);
@@ -477,7 +479,7 @@ async function viewPlayer(id, tab, seq) {
   const fc = $('.fcount');
   if (fc) fc.textContent = `${fmt(list.length)} ${plural(list.length, 'матч', 'матча', 'матчей')} в выборке`;
   ({ overview: tabOverview, matches: tabMatches, heroes: tabHeroes, records: tabRecords, trends: tabTrends,
-    peers: tabPeers, compare: tabCompare }[tab] || tabOverview)(box, p, list, id, seq);
+    matchups: tabMatchups, peers: tabPeers, compare: tabCompare }[tab] || tabOverview)(box, p, list, id, seq);
   drawCharts();
 }
 
@@ -583,6 +585,7 @@ function tabOverview(box, p, list, id) {
         <h2>Советы <small>посчитано по твоим матчам</small></h2>
         <div class="insights">${insights(list).map(i => `<div class="ins ${i.cls}"><span class="i">${i.icon}</span><div><b>${i.title}</b><div class="t">${i.text}</div></div></div>`).join('') || '<div class="muted">Мало матчей для выводов</div>'}</div>
       </section>
+      ${vsMetaCard(p, list)}
       <section class="card">
         <h2>Линии <small>${lanesKnown ? `известна у ${fmt(lanesKnown)} матчей` : ''}</small></h2>
         ${lanes.length ? lanes.map(l => `<div style="display:grid;grid-template-columns:90px 1fr 60px 64px;gap:10px;align-items:center;padding:4px 0">
@@ -612,6 +615,7 @@ function heroRow(h, aid, cols) {
     dur: `<td class="num r">${dur(h.dur)}</td>`,
     score: `<td class="num r muted" data-tip="Нижняя граница винрейта с учётом числа игр (Вилсон). Чем выше, тем увереннее герой твой.">${pct(h.score)}</td>`,
     last: `<td class="r muted">${ago(h.last)}</td>`,
+    vsm: h.vsm == null ? '<td class="r muted">—</td>' : `<td class="num r ${h.vsm >= 0 ? 'win' : 'loss'}" data-tip="Твой винрейт минус средний на этом герое у всех на твоём ранге (${pct(h.base)})">${signPct(h.vsm)}</td>`,
   };
   return `<tr class="click" data-hero="${h.id}">${`<td>${heroCell(h.id)}</td>`}${cols.map(k => c[k]).join('')}</tr>`;
 }
@@ -737,11 +741,13 @@ function tabMatches(box, p, _list, id) {
 
 // ── Герои ──
 const HERO_COLS = [['n', 'Матчей'], ['wr', 'Винрейт'], ['score', 'Надёжность'], ['kda', 'KDA'], ['kda3', 'K/D/A'],
-  ['gpm', 'GPM'], ['xpm', 'XPM'], ['lh', 'Крипы'], ['dmg', 'Урон'], ['dur', 'Длит.'], ['last', 'Последний']];
+  ['vsm', 'vs ранг'], ['gpm', 'GPM'], ['xpm', 'XPM'], ['lh', 'Крипы'], ['dmg', 'Урон'], ['dur', 'Длит.'], ['last', 'Последний']];
 function tabHeroes(box, p, list, id) {
   const q = (S.heroQ || '').toLowerCase();
   const minN = S.heroMin || 1;
   let hs = heroStats(list).filter(h => h.n >= minN && (!q || h.name.toLowerCase().includes(q)));
+  const md = metaDelta(p);
+  for (const h of hs) { h.base = md ? md.of(h.id) : null; h.vsm = h.base == null ? null : h.wr - h.base; }
   const { key, asc } = S.heroSort;
   const sk = key === 'kda3' ? 'k' : key;
   hs.sort((a, b) => (asc ? 1 : -1) * ((a[sk] ?? -1) - (b[sk] ?? -1)) || b.n - a.n);

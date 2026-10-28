@@ -124,6 +124,36 @@
       avatarfull: r.avatarfull, last_match_time: r.last_match_time }));
   }
 
+  // ── Мета ──
+  const H6 = 6 * 3600 * 1000;
+  const META_FIELDS = ['pro_pick', 'pro_win', 'pro_ban', 'turbo_picks', 'turbo_wins', 'pub_pick', 'pub_win'];
+  for (let b = 1; b <= 8; b++) META_FIELDS.push(b + '_pick', b + '_win');
+
+  async function meta() {
+    const rows = await od('/heroStats', H6);
+    return { heroes: rows.map(r => { const h = { id: r.id }; for (const f of META_FIELDS) h[f] = r[f] || 0; return h; }) };
+  }
+
+  async function metaHero(hid) {
+    const safe = (path, def) => od(path, H6).catch(() => def); // одна ручка легла — остальное покажем
+    const [matchups, items, durations] = await Promise.all([
+      safe(`/heroes/${hid}/matchups`, []), safe(`/heroes/${hid}/itemPopularity`, {}), safe(`/heroes/${hid}/durations`, [])]);
+    return { id: hid, matchups, items, durations };
+  }
+
+  async function proMatches() {
+    const keep = ['match_id', 'start_time', 'duration', 'radiant_name', 'dire_name', 'league_name',
+      'radiant_score', 'dire_score', 'radiant_win'];
+    return (await od('/proMatches', 600 * 1000)).slice(0, 40).map(m => pick(m, keep));
+  }
+
+  async function playerHeroes(aid, qs) {
+    const q = ['date', 'lobby_type', 'game_mode', 'hero_id', 'lane_role']
+      .filter(k => /^\d+$/.test(qs.get(k) || '')).map(k => `${k}=${qs.get(k)}`).join('&');
+    const keep = ['hero_id', 'games', 'win', 'with_games', 'with_win', 'against_games', 'against_win'];
+    return (await od(`/players/${aid}/heroes${q ? '?' + q : ''}`)).map(r => pick(r, keep));
+  }
+
   async function poke(path) {
     try { const r = await fetch(API + path, { method: 'POST' }); return { ok: r.ok }; }
     catch (e) { return { ok: false, message: e.message }; }
@@ -154,6 +184,10 @@
       if (p === '/resolve') return { account_id: parseAccountId(qs.get('q') || '') };
       if ((m = p.match(/^\/player\/(\d+)$/))) return playerBundle(+m[1], qs.get('fresh') === '1');
       if ((m = p.match(/^\/player\/(\d+)\/peers$/))) return peers(+m[1]);
+      if ((m = p.match(/^\/player\/(\d+)\/heroes$/))) return playerHeroes(+m[1], qs);
+      if (p === '/meta') return meta();
+      if (p === '/promatches') return proMatches();
+      if ((m = p.match(/^\/meta\/hero\/(\d+)$/))) return metaHero(+m[1]);
       if ((m = p.match(/^\/match\/(\d+)$/))) return matchBundle(+m[1]);
     }
     throw new Error('нет такой ручки');

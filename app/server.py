@@ -29,6 +29,7 @@ CONFIG_DIR = os.path.join(os.environ.get("XDG_CONFIG_HOME") or os.path.expanduse
                           "dota-stats")
 CONFIG = os.path.join(CONFIG_DIR, "config.json")
 WEEK = 7 * 24 * 3600
+META_TTL = 6 * 3600  # мета меняется медленно, раз в 6 часов хватит
 
 # Какие поля матча из истории игрока нужны фронту. Порядок важен — фронт
 # получает массив массивов и собирает объекты по этому списку (так в 2 раза меньше JSON).
@@ -167,6 +168,55 @@ def search(q):
             for r in rows[:20]]
 
 
+# ─────────────────────────────────────────────────────────────────────────────
+# Мета: про-сцена + паблик по рангам (OpenDota /heroStats)
+# ─────────────────────────────────────────────────────────────────────────────
+META_FIELDS = ["pro_pick", "pro_win", "pro_ban", "turbo_picks", "turbo_wins", "pub_pick", "pub_win"] + \
+    [f"{b}_{k}" for b in range(1, 9) for k in ("pick", "win")]
+
+
+def meta():
+    rows = dota.fetch("/heroStats", ttl=META_TTL)
+    out = []
+    for r in rows:
+        h = {"id": r.get("id")}
+        for f in META_FIELDS:
+            h[f] = r.get(f) or 0
+        out.append(h)
+    return {"heroes": out}
+
+
+def meta_hero(hid):
+    def safe(path, default):
+        try:
+            return dota.fetch(path, ttl=META_TTL)
+        except RuntimeError:
+            return default  # одна ручка легла — остальное всё равно покажем
+    return {
+        "id": hid,
+        "matchups": safe(f"/heroes/{hid}/matchups", []),
+        "items": safe(f"/heroes/{hid}/itemPopularity", {}),
+        "durations": safe(f"/heroes/{hid}/durations", []),
+    }
+
+
+def pro_matches():
+    keep = ["match_id", "start_time", "duration", "radiant_name", "dire_name", "league_name",
+            "radiant_score", "dire_score", "radiant_win"]
+    return [{k: m.get(k) for k in keep} for m in dota.fetch("/proMatches", ttl=600)[:40]]
+
+
+PH_PARAMS = ("date", "lobby_type", "game_mode", "hero_id", "lane_role")
+
+
+def player_heroes(aid, qs):
+    """С кем/против кого — /players/{id}/heroes, фильтры прокидываем как есть (только числа)."""
+    q = "&".join(f"{k}={int(qs[k][0])}" for k in PH_PARAMS if qs.get(k) and qs[k][0].isdigit())
+    rows = dota.fetch(f"/players/{aid}/heroes" + (f"?{q}" if q else ""))
+    keep = ["hero_id", "games", "win", "with_games", "with_win", "against_games", "against_win"]
+    return [{k: r.get(k) for k in keep} for r in rows]
+
+
 def request_refresh(aid):
     """Просим OpenDota подтянуть свежие матчи игрока (POST /refresh)."""
     req = urllib.request.Request(f"{dota.API}/players/{aid}/refresh", data=b"", method="POST",
@@ -274,6 +324,16 @@ class Handler(BaseHTTPRequestHandler):
             if m:
                 fresh = (qs.get("fresh") or ["0"])[0] == "1"
                 return self._send(200, player_bundle(int(m.group(1)), fresh))
+            if path == "/api/meta":
+                return self._send(200, meta())
+            if path == "/api/promatches":
+                return self._send(200, pro_matches())
+            m = re.fullmatch(r"/api/meta/hero/(\d+)", path)
+            if m:
+                return self._send(200, meta_hero(int(m.group(1))))
+            m = re.fullmatch(r"/api/player/(\d+)/heroes", path)
+            if m:
+                return self._send(200, player_heroes(int(m.group(1)), qs))
             m = re.fullmatch(r"/api/player/(\d+)/peers", path)
             if m:
                 return self._send(200, peers(int(m.group(1))))
