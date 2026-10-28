@@ -372,6 +372,44 @@ function updateMeBtn() {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Вход через Steam (OpenID 2.0). Просто узнаём твой steamID и подставляем как свой профиль.
+// Подпись ответа не проверяем (для этого нужен сервер), и это ок: логин ничего приватного
+// не открывает, вся стата публичная. Пароль вводится только на steamcommunity.com.
+// ─────────────────────────────────────────────────────────────────────────────
+const STEAM_ICO = '<svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2a10 10 0 0 0-9.96 9.04l5.35 2.21a2.83 2.83 0 0 1 1.6-.49h.16l2.38-3.45v-.05a3.77 3.77 0 1 1 3.77 3.77h-.09l-3.4 2.42v.13a2.83 2.83 0 0 1-5.62.47L2.4 14.5A10 10 0 1 0 12 2Zm-4.72 15.2-1.22-.5a2.13 2.13 0 1 0 1.17-2.9l1.27.52a1.57 1.57 0 1 1-1.22 2.88Zm9.2-6.6a2.51 2.51 0 1 0-2.51-2.51 2.51 2.51 0 0 0 2.51 2.5Zm0-4.4a1.89 1.89 0 1 1-1.88 1.89 1.89 1.89 0 0 1 1.88-1.89Z"/></svg>';
+
+function steamLogin() {
+  const back = location.origin + location.pathname;
+  const q = new URLSearchParams({
+    'openid.ns': 'http://specs.openid.net/auth/2.0',
+    'openid.mode': 'checkid_setup',
+    'openid.return_to': back,
+    'openid.realm': back,
+    'openid.identity': 'http://specs.openid.net/auth/2.0/identifier_select',
+    'openid.claimed_id': 'http://specs.openid.net/auth/2.0/identifier_select',
+  });
+  location.href = 'https://steamcommunity.com/openid/login?' + q;
+}
+
+// вернулись со Стима: ?openid.claimed_id=https://steamcommunity.com/openid/id/7656119...
+async function steamReturn() {
+  const qs = new URLSearchParams(location.search);
+  if (!qs.has('openid.mode')) return false;
+  const clean = location.origin + location.pathname;
+  const m = (qs.get('openid.claimed_id') || '').match(/^https:\/\/steamcommunity\.com\/openid\/id\/(\d{17})$/);
+  if (qs.get('openid.mode') !== 'id_res' || !m) {
+    history.replaceState(null, '', clean + '#/setup');
+    toast('Вход через Steam не прошёл');
+    return false;
+  }
+  const r = await api('/resolve?q=' + m[1]);
+  S.cfg = await post('/config', { account_id: r.account_id });
+  history.replaceState(null, '', clean + '#/p/' + r.account_id);
+  toast('Зашёл через Steam, это твой профиль');
+  return true;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Онбординг
 // ─────────────────────────────────────────────────────────────────────────────
 function viewSetup() {
@@ -386,6 +424,8 @@ function viewSetup() {
       <input class="inp" id="sid" placeholder="Friend ID, steamID64 или ссылка" value="${S.cfg.account_id || ''}" autofocus>
       <button class="btn primary">Погнали</button>
     </form>
+    <div class="or"><span>или</span></div>
+    <button class="btn steam" id="steamlogin" type="button">${STEAM_ICO} Войти через Steam</button>
     <div id="serr" class="loss"></div>
     ${favs ? `<div class="favs">${favs}</div>` : ''}
     <div class="help">
@@ -394,10 +434,11 @@ function viewSetup() {
         <li>В доте: профиль, число <b>Friend ID</b> под ником.</li>
         <li>Или ссылка на профиль Steam/Dotabuff/OpenDota, приложение само вытащит ID.</li>
       </ul>
-      <b>Логин через Steam не нужен.</b> Статистика публичная, пароль никуда не вводишь.<br>
+      <b>Через Steam</b> — просто чтоб не искать ID. Пароль вводишь только на сайте Стима, сюда он не попадает.<br>
       Если пусто: в доте <b>Настройки → Опции → Расширенные → «Открыть доступ к истории матчей»</b>.
     </div>
   </div>`;
+  $('#steamlogin').onclick = steamLogin;
   $('#setup').onsubmit = async e => {
     e.preventDefault();
     const v = $('#sid').value.trim();
@@ -1226,5 +1267,6 @@ document.addEventListener('keydown', e => {
 (async () => {
   attachSearch($('#q'), $('#drop'), r => `#/p/${r.account_id}`);
   try { S.cfg = await api('/config'); } catch { S.cfg = {}; }
+  try { await steamReturn(); } catch (e) { toast(esc(e.message)); }
   route();
 })();

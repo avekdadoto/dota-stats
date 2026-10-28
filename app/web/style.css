@@ -306,6 +306,11 @@ select:focus, .inp:focus { border-color: var(--accent); }
 .empty-state { color: var(--muted); padding: 24px 0; text-align: center; }
 .toast { position: fixed; bottom: 20px; right: 20px; background: var(--surface-2); border: 1px solid var(--edge); border-left: 3px solid var(--accent); padding: 10px 14px; border-radius: 8px; z-index: 200; box-shadow: 0 8px 24px rgba(0,0,0,.5); }
 
+.onb .or { display: flex; align-items: center; gap: 10px; color: var(--muted); font-size: 12px; margin: 14px 0 10px; }
+.onb .or::before, .onb .or::after { content: ""; flex: 1; height: 1px; background: var(--edge); }
+.btn.steam { background: #171a21; border-color: #2a475e; color: #c7d5e0; font-weight: 600; padding: 9px 16px; }
+.btn.steam:hover { border-color: #66c0f4; color: #fff; }
+
 /* ── мета ── */
 .tier { display: inline-grid; place-items: center; width: 26px; height: 22px; border-radius: 5px; font: 800 13px var(--mono); color: #111; }
 .tier.t0 { background: #ff7a45; }
