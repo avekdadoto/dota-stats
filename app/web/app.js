@@ -388,6 +388,7 @@ function updateMeBtn() {
       <a href="#/p/${id}/skill">Мой скилл</a>
       <a href="#/p/${id}/matchups">Мои матчапы</a>
       <a href="#/p/${id}/sessions">Тильт-детектор</a>
+      <a href="#/p/${id}/goals">Мои цели</a>
       <a href="#/p/${id}/wrapped">Мои итоги</a>
       <a href="#/meta">Мета</a>
       <a href="#/draft">Контрпик</a>
@@ -503,7 +504,7 @@ function viewSetup() {
 // Страница игрока
 // ─────────────────────────────────────────────────────────────────────────────
 const TABS = [['overview', 'Обзор'], ['matches', 'Матчи'], ['heroes', 'Герои'], ['skill', 'Скилл'], ['records', 'Рекорды'],
-  ['trends', 'Тренды'], ['sessions', 'Сессии'], ['matchups', 'Матчапы'], ['peers', 'Друзья'], ['compare', 'Сравнить'], ['wrapped', 'Итоги']];
+  ['trends', 'Тренды'], ['sessions', 'Сессии'], ['matchups', 'Матчапы'], ['peers', 'Друзья'], ['compare', 'Сравнить'], ['goals', 'Цели'], ['wrapped', 'Итоги']];
 
 async function viewPlayer(id, tab, seq) {
   if (!S.players.has(id)) loading('Тяну всю историю матчей… в первый раз секунд 5–10, потом из кэша мгновенно');
@@ -540,7 +541,7 @@ async function viewPlayer(id, tab, seq) {
   </section>`;
 
   const tabs = `<nav class="tabs">${TABS.map(([k, n]) => `<a href="#/p/${id}/${k}" class="${k === tab ? 'on' : ''}">${n}</a>`).join('')}</nav>`;
-  const needFilters = !['peers', 'compare', 'wrapped'].includes(tab);
+  const needFilters = !['peers', 'compare', 'wrapped', 'goals'].includes(tab);
   app.innerHTML = head + tabs + (needFilters ? filterBar(p, tab) : '') + '<div id="tab"></div>';
 
   $('#favbtn').onclick = async () => {
@@ -566,7 +567,7 @@ async function viewPlayer(id, tab, seq) {
   const fc = $('.fcount');
   if (fc) fc.textContent = `${fmt(list.length)} ${plural(list.length, 'матч', 'матча', 'матчей')} в выборке`;
   ({ overview: tabOverview, matches: tabMatches, heroes: tabHeroes, records: tabRecords, trends: tabTrends,
-    skill: tabSkill, sessions: tabSessions, wrapped: tabWrapped, matchups: tabMatchups, peers: tabPeers, compare: tabCompare }[tab] || tabOverview)(box, p, list, id, seq);
+    skill: tabSkill, sessions: tabSessions, wrapped: tabWrapped, goals: tabGoals, matchups: tabMatchups, peers: tabPeers, compare: tabCompare }[tab] || tabOverview)(box, p, list, id, seq);
   drawCharts();
 }
 
