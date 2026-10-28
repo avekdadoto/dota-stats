@@ -387,6 +387,7 @@ function updateMeBtn() {
       <a href="#/p/${id}/heroes">Мои герои</a>
       <a href="#/p/${id}/skill">Мой скилл</a>
       <a href="#/p/${id}/matchups">Мои матчапы</a>
+      <a href="#/p/${id}/sessions">Тильт-детектор</a>
       <a href="#/meta">Мета</a>
       <a href="#/draft">Контрпик</a>
       <hr><button id="logout">Выйти</button>
@@ -501,7 +502,7 @@ function viewSetup() {
 // Страница игрока
 // ─────────────────────────────────────────────────────────────────────────────
 const TABS = [['overview', 'Обзор'], ['matches', 'Матчи'], ['heroes', 'Герои'], ['skill', 'Скилл'], ['records', 'Рекорды'],
-  ['trends', 'Тренды'], ['matchups', 'Матчапы'], ['peers', 'Друзья'], ['compare', 'Сравнить']];
+  ['trends', 'Тренды'], ['sessions', 'Сессии'], ['matchups', 'Матчапы'], ['peers', 'Друзья'], ['compare', 'Сравнить']];
 
 async function viewPlayer(id, tab, seq) {
   if (!S.players.has(id)) loading('Тяну всю историю матчей… в первый раз секунд 5–10, потом из кэша мгновенно');
@@ -564,7 +565,7 @@ async function viewPlayer(id, tab, seq) {
   const fc = $('.fcount');
   if (fc) fc.textContent = `${fmt(list.length)} ${plural(list.length, 'матч', 'матча', 'матчей')} в выборке`;
   ({ overview: tabOverview, matches: tabMatches, heroes: tabHeroes, records: tabRecords, trends: tabTrends,
-    skill: tabSkill, matchups: tabMatchups, peers: tabPeers, compare: tabCompare }[tab] || tabOverview)(box, p, list, id, seq);
+    skill: tabSkill, sessions: tabSessions, matchups: tabMatchups, peers: tabPeers, compare: tabCompare }[tab] || tabOverview)(box, p, list, id, seq);
   drawCharts();
 }
 
