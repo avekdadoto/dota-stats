@@ -130,6 +130,7 @@ async function loadPlayer(id, fresh = false) {
   delete b.matches;
   b.byId = new Map(b.list.map(m => [m.match_id, m]));
   S.players.set(id, b);
+  rememberMe(b);
   return b;
 }
 
@@ -366,9 +367,49 @@ function loading(msg) {
   app.innerHTML = `<div class="loading"><div class="spin"></div><div>${esc(msg)}</div></div>`;
 }
 
+// Справа сверху как на дотабаффе: не вошёл — кнопка Steam, вошёл — ава, ник и меню.
 function updateMeBtn() {
-  const b = $('#mebtn');
-  b.href = S.cfg.account_id ? '#/p/' + S.cfg.account_id : '#/setup';
+  const box = $('#acct');
+  const id = S.cfg.account_id;
+  if (!id) {
+    box.innerHTML = `<button class="btn steam" id="hsteam">${STEAM_ICO}<span>Войти через Steam</span></button>`;
+    $('#hsteam').onclick = steamLogin;
+    return;
+  }
+  const me = lsGet('me') || {};
+  const ava = me.id === id && me.avatar ? `<img src="${esc(me.avatar)}" alt="">` : '<span class="noava">◉</span>';
+  const name = me.id === id && me.name ? me.name : 'Мой профиль';
+  box.innerHTML = `<button class="me" id="mebtn" aria-haspopup="true">${ava}<span class="nm">${esc(name)}</span><span class="car">▾</span></button>
+    <div class="menu" id="memenu">
+      <a href="#/p/${id}">Мой профиль</a>
+      <a href="#/p/${id}/matches">Мои матчи</a>
+      <a href="#/p/${id}/heroes">Мои герои</a>
+      <a href="#/p/${id}/matchups">Мои матчапы</a>
+      <a href="#/meta">Мета</a>
+      <hr><button id="logout">Выйти</button>
+    </div>`;
+  const menu = $('#memenu');
+  $('#mebtn').onclick = e => { e.stopPropagation(); menu.classList.toggle('open'); };
+  menu.onclick = () => menu.classList.remove('open');
+  $('#logout').onclick = async () => {
+    S.cfg = await post('/config', { account_id: null });
+    lsSet('me', null);
+    toast('Вышел');
+    location.hash = '#/setup';
+    updateMeBtn();
+  };
+}
+document.addEventListener('click', e => { const m = $('#memenu'); if (m && !e.target.closest('#acct')) m.classList.remove('open'); });
+
+// запоминаем ник и аву своего профиля для шапки
+function rememberMe(p) {
+  if (p && p.account_id === S.cfg.account_id) {
+    const old = lsGet('me') || {};
+    if (old.id !== p.account_id || old.name !== p.name || old.avatar !== p.avatar) {
+      lsSet('me', { id: p.account_id, name: p.name, avatar: p.avatar });
+      updateMeBtn();
+    }
+  }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -405,7 +446,8 @@ async function steamReturn() {
   const r = await api('/resolve?q=' + m[1]);
   S.cfg = await post('/config', { account_id: r.account_id });
   history.replaceState(null, '', clean + '#/p/' + r.account_id);
-  toast('Зашёл через Steam, это твой профиль');
+  updateMeBtn();
+  toast('Зашёл через Steam');
   return true;
 }
 
@@ -419,33 +461,34 @@ function viewSetup() {
   }).join('');
   app.innerHTML = `<div class="onb">
     <h1>Dota Stats <span class="muted" style="font-size:18px;font-weight:500">by avekda</span></h1>
-    <p>Свой дотабафф, только без рекламы и удобнее.<br>Вставь свой Friend ID или ссылку на профиль, и погнали.</p>
+    <p>Свой дотабафф, только без рекламы и удобнее.</p>
+    ${S.cfg.account_id ? `<a class="btn primary big" href="#/p/${S.cfg.account_id}">Мой профиль →</a>`
+      : `<button class="btn steam big" id="steamlogin" type="button">${STEAM_ICO} Войти через Steam</button>`}
+    <div class="or"><span>или посмотреть любого игрока</span></div>
     <form id="setup">
-      <input class="inp" id="sid" placeholder="Friend ID, steamID64 или ссылка" value="${S.cfg.account_id || ''}" autofocus>
-      <button class="btn primary">Погнали</button>
+      <input class="inp" id="sid" placeholder="Friend ID, steamID64 или ссылка">
+      <button class="btn">Открыть</button>
     </form>
-    <div class="or"><span>или</span></div>
-    <button class="btn steam" id="steamlogin" type="button">${STEAM_ICO} Войти через Steam</button>
     <div id="serr" class="loss"></div>
     ${favs ? `<div class="favs">${favs}</div>` : ''}
     <div class="help">
-      <b>Где взять ID:</b>
+      <b>Где взять чужой ID:</b>
       <ul>
         <li>В доте: профиль, число <b>Friend ID</b> под ником.</li>
         <li>Или ссылка на профиль Steam/Dotabuff/OpenDota, приложение само вытащит ID.</li>
       </ul>
-      <b>Через Steam</b> — просто чтоб не искать ID. Пароль вводишь только на сайте Стима, сюда он не попадает.<br>
+      <b>Вход через Steam</b> — как на дотабаффе: пароль вводишь только на сайте Стима, сюда он не попадает.<br>
       Если пусто: в доте <b>Настройки → Опции → Расширенные → «Открыть доступ к истории матчей»</b>.
     </div>
   </div>`;
-  $('#steamlogin').onclick = steamLogin;
+  const sl = $('#steamlogin');
+  if (sl) sl.onclick = steamLogin;
   $('#setup').onsubmit = async e => {
     e.preventDefault();
     const v = $('#sid').value.trim();
     try {
       const r = await api('/resolve?q=' + encodeURIComponent(v));
       if (!r.account_id) throw new Error('Не понял ID. Дай число или ссылку.');
-      S.cfg = await post('/config', { account_id: r.account_id });
       location.hash = '#/p/' + r.account_id;
     } catch (err) { $('#serr').textContent = err.message; }
   };
@@ -479,7 +522,7 @@ async function viewPlayer(id, tab, seq) {
         <a href="https://www.dotabuff.com/players/${id}" target="_blank">Dotabuff ↗</a>
       </div>
       <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap">
-        ${isMe ? '<span class="badge acc">это ты</span>' : `<button class="btn sm" id="setme">Это я</button>`}
+        ${isMe ? '<span class="badge acc">это ты</span>' : ''}
         <button class="btn sm" id="refresh" title="Попросить OpenDota подтянуть свежие матчи">↻ Обновить</button>
       </div>
     </div>
@@ -501,8 +544,6 @@ async function viewPlayer(id, tab, seq) {
     S.cfg = await post('/config', { favorites: [...f] });
     $('#favbtn').classList.toggle('on', f.has(id));
   };
-  const sm = $('#setme');
-  if (sm) sm.onclick = async () => { S.cfg = await post('/config', { account_id: id }); toast('Теперь это твой профиль'); route(); };
   $('#refresh').onclick = async e => {
     const b = e.currentTarget;
     b.disabled = true; b.textContent = '↻ Обновляю…';

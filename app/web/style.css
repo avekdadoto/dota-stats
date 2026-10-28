@@ -311,6 +311,24 @@ select:focus, .inp:focus { border-color: var(--accent); }
 .btn.steam { background: #171a21; border-color: #2a475e; color: #c7d5e0; font-weight: 600; padding: 9px 16px; }
 .btn.steam:hover { border-color: #66c0f4; color: #fff; }
 
+/* ── аккаунт в шапке ── */
+.acct { position: relative; }
+.acct .btn.steam { padding: 7px 13px; }
+.acct .me { display: flex; align-items: center; gap: 8px; padding: 4px 10px 4px 4px; border: 1px solid var(--edge); border-radius: 8px; background: var(--surface); cursor: pointer; max-width: 220px; }
+.acct .me:hover { border-color: var(--accent); }
+.acct .me img, .acct .me .noava { width: 28px; height: 28px; border-radius: 6px; flex: none; display: grid; place-items: center; background: var(--surface-3); }
+.acct .me .nm { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
+.acct .me .car { color: var(--muted); font-size: 11px; }
+.acct .menu { position: absolute; right: 0; top: calc(100% + 6px); min-width: 190px; padding: 6px; display: none;
+  background: var(--surface-2); border: 1px solid var(--edge); border-radius: 8px; box-shadow: 0 12px 30px rgba(0,0,0,.5); z-index: 30; }
+.acct .menu.open { display: block; }
+.acct .menu a, .acct .menu button { display: block; width: 100%; text-align: left; padding: 8px 10px; border-radius: 6px; background: none; border: 0; cursor: pointer; }
+.acct .menu a:hover, .acct .menu button:hover { background: var(--surface-3); }
+.acct .menu hr { border: 0; border-top: 1px solid var(--edge); margin: 4px 0; }
+.acct .menu #logout { color: var(--loss); }
+.btn.big { padding: 12px 22px; font-size: 15px; }
+@media (max-width: 720px) { .acct .me .nm, .acct .btn.steam span { display: none; } }
+
 /* ── мета ── */
 .tier { display: inline-grid; place-items: center; width: 26px; height: 22px; border-radius: 5px; font: 800 13px var(--mono); color: #111; }
 .tier.t0 { background: #ff7a45; }
