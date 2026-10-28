@@ -394,6 +394,7 @@ function updateMeBtn() {
       <a href="#/p/${id}/sessions">Тильт-детектор</a>
       <a href="#/p/${id}/goals">Мои цели</a>
       <a href="#/p/${id}/wrapped">Мои итоги</a>
+      <a href="#/p/${id}/squad">Рейтинг кентов</a>
       <a href="#/meta">Мета</a>
       <a href="#/draft">Контрпик</a>
       <a href="#/live">Лайв</a>
@@ -510,7 +511,7 @@ function viewSetup() {
 // Страница игрока
 // ─────────────────────────────────────────────────────────────────────────────
 const TABS = [['overview', 'Обзор'], ['matches', 'Матчи'], ['heroes', 'Герои'], ['skill', 'Скилл'], ['records', 'Рекорды'],
-  ['trends', 'Тренды'], ['mmr', 'ММР'], ['sessions', 'Сессии'], ['matchups', 'Матчапы'], ['peers', 'Друзья'], ['compare', 'Сравнить'], ['goals', 'Цели'], ['wrapped', 'Итоги']];
+  ['trends', 'Тренды'], ['mmr', 'ММР'], ['sessions', 'Сессии'], ['matchups', 'Матчапы'], ['peers', 'Друзья'], ['squad', 'Кенты-топ'], ['compare', 'Сравнить'], ['goals', 'Цели'], ['wrapped', 'Итоги']];
 
 async function viewPlayer(id, tab, seq) {
   if (!S.players.has(id)) loading('Тяну всю историю матчей… в первый раз секунд 5–10, потом из кэша мгновенно');
@@ -536,6 +537,7 @@ async function viewPlayer(id, tab, seq) {
       <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap">
         ${isMe ? '<span class="badge acc">это ты</span>' : ''}
         <button class="btn sm" id="refresh" title="Попросить OpenDota подтянуть свежие матчи">↻ Обновить</button>
+        <button class="btn sm" id="csvbtn" title="Скачать все матчи таблицей (Excel, Google Sheets)">⤓ CSV</button>
       </div>
     </div>
     ${rankBadge(p.rank_tier, p.leaderboard_rank)}
@@ -547,7 +549,7 @@ async function viewPlayer(id, tab, seq) {
   </section>`;
 
   const tabs = `<nav class="tabs">${TABS.map(([k, n]) => `<a href="#/p/${id}/${k}" class="${k === tab ? 'on' : ''}">${n}</a>`).join('')}</nav>`;
-  const needFilters = !['peers', 'compare', 'wrapped', 'goals'].includes(tab);
+  const needFilters = !['peers', 'squad', 'compare', 'wrapped', 'goals'].includes(tab);
   app.innerHTML = head + tabs + (needFilters ? filterBar(p, tab) : '') + '<div id="tab"></div>';
 
   $('#favbtn').onclick = async () => {
@@ -566,6 +568,8 @@ async function viewPlayer(id, tab, seq) {
       if (location.hash.includes('/p/' + id)) route();
     }, 15000);
   };
+  $('#csvbtn').onclick = () => exportCsv(p);
+  rememberRecent(p);
   if (needFilters) bindFilters();
 
   const box = $('#tab');
@@ -573,7 +577,7 @@ async function viewPlayer(id, tab, seq) {
   const fc = $('.fcount');
   if (fc) fc.textContent = `${fmt(list.length)} ${plural(list.length, 'матч', 'матча', 'матчей')} в выборке`;
   ({ overview: tabOverview, matches: tabMatches, heroes: tabHeroes, records: tabRecords, trends: tabTrends,
-    skill: tabSkill, sessions: tabSessions, wrapped: tabWrapped, goals: tabGoals, mmr: tabMmr, matchups: tabMatchups, peers: tabPeers, compare: tabCompare }[tab] || tabOverview)(box, p, list, id, seq);
+    skill: tabSkill, sessions: tabSessions, wrapped: tabWrapped, goals: tabGoals, mmr: tabMmr, squad: tabSquad, matchups: tabMatchups, peers: tabPeers, compare: tabCompare }[tab] || tabOverview)(box, p, list, id, seq);
   drawCharts();
 }
 
@@ -1321,6 +1325,8 @@ document.addEventListener('keydown', e => {
 // ─────────────────────────────────────────────────────────────────────────────
 (async () => {
   attachSearch($('#q'), $('#drop'), r => `#/p/${r.account_id}`);
+  $('#q').addEventListener('focus', () => showRecent($('#q'), $('#drop')));
+  $('#q').addEventListener('input', () => { if (!$('#q').value.trim()) showRecent($('#q'), $('#drop')); });
   try { S.cfg = await api('/config'); } catch { S.cfg = {}; }
   try { await steamReturn(); } catch (e) { toast(esc(e.message)); }
   // ставится как приложение (PWA); на локальном сервере тоже работает

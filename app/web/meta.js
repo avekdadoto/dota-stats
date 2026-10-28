@@ -140,6 +140,7 @@ function renderMeta() {
   app.innerHTML = `<section class="mhero-head">
       <div><h1>Мета героев</h1>
       <div class="muted">${o.src === 'pro' ? `Про-матчи за последний период · ≈${fmt(games)} ${plural(Math.round(games), 'игра', 'игры', 'игр')}` : `${brName(o.src)} · ≈${fmt(games)} ${plural(Math.round(games), 'игра', 'игры', 'игр')} за неделю`} · данные OpenDota</div></div>
+      <button class="btn primary" id="pickme" title="Сильный герой твоего ранга, на котором ты почти не играл">🎲 Что пикнуть?</button>
       <div class="top5">${top.map(r => `<a href="#/meta/${r.id}" data-tip="<b>${esc(hero(r.id).name)}</b><br>Тир ${TIERS[r.tier]} · WR ${pct(r.wr)} · ${o.src === 'pro' ? 'контест ' + pct(r.contest) : 'пикрейт ' + pct(r.pr)}"><img src="${esc(heroImg(r.id))}" alt="">${tierBadge(r.tier)}</a>`).join('')}</div>
     </section>
     <div class="filters">
@@ -166,6 +167,7 @@ function renderMeta() {
       </div>
     </div>`;
 
+  $('#pickme').onclick = pickForMe;
   const save = () => { o.touched = true; lsSet('metaOpt', o); renderMeta(); };
   $('#msrc').onclick = e => { const b = e.target.closest('button'); if (b) { o.src = b.dataset.v; save(); } };
   $('#mattr').onclick = e => { const b = e.target.closest('button'); if (b) { o.attr = b.dataset.v; save(); } };
