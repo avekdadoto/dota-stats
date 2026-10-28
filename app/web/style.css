@@ -362,6 +362,34 @@ select:focus, .inp:focus { border-color: var(--accent); }
 .irow { display: flex; flex-wrap: wrap; gap: 6px; }
 .irow img { width: 46px; height: 34px; border-radius: 4px; display: block; }
 
+/* ── контрпик ── */
+.dteams { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 12px; }
+.dteam { border: 1px solid var(--edge); border-radius: var(--r); padding: 12px; background: var(--surface); cursor: pointer; }
+.dteam.on { border-color: var(--accent); }
+.dteam.ally.on { border-color: var(--win); }
+.dteam .dt { font-weight: 700; margin-bottom: 8px; text-transform: uppercase; letter-spacing: 1px; font-size: 12px; }
+.dteam.enemy .dt { color: var(--loss); }
+.dteam.ally .dt { color: var(--win); }
+.dteam .dt small { color: var(--muted); font-weight: 400; }
+.dslots { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 6px; }
+.dslot { height: 62px; border: 1px dashed var(--edge); border-radius: 6px; background: var(--surface-2); color: var(--muted); font-size: 20px; cursor: pointer; padding: 0; overflow: hidden; }
+.dslot.on { border-color: var(--text-2); }
+.dslot.full { border-style: solid; display: flex; flex-direction: column; font-size: 11px; color: var(--text); }
+.dslot.full img { width: 100%; height: 42px; object-fit: cover; }
+.dslot.full span { padding: 2px 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.dslot.full:hover { border-color: var(--loss); opacity: .8; }
+.dgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(72px, 1fr)); gap: 6px; max-height: 640px; overflow: auto; }
+.dh { padding: 0; border: 1px solid var(--edge); border-radius: 5px; background: var(--surface-2); cursor: pointer; overflow: hidden; display: flex; flex-direction: column; }
+.dh img { width: 100%; height: 40px; object-fit: cover; }
+.dh span { font-size: 10px; padding: 2px 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--text-2); }
+.dh:hover { border-color: var(--accent); }
+.dh.taken { opacity: .25; cursor: default; }
+.dvs { display: flex; gap: 4px; }
+.dvs span { display: flex; flex-direction: column; align-items: center; }
+.dvs img { width: 34px; height: 19px; border-radius: 3px; object-fit: cover; }
+.dvs i { font: normal 10px var(--mono); }
+@media (max-width: 720px) { .dteams { grid-template-columns: 1fr; } #draftbtn, #metabtn { padding: 7px 9px; } }
+
 @media (max-width: 960px) {
   .g-main, .g3 { grid-template-columns: minmax(0, 1fr); }
 }
