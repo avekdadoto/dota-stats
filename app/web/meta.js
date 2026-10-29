@@ -261,7 +261,8 @@ async function viewMetaHero(hid, seq) {
       <img class="ava" src="${esc(heroImg(hid))}" alt="" style="width:150px;height:84px">
       <div class="who"><h1>${esc(h.name)}</h1>
         <div class="sub"><span>${esc((h.roles || []).map(x => ROLES_RU[x] || x).join(' · '))}</span><span>${h.attack === 'Melee' ? 'Ближний бой' : 'Дальний бой'}</span>
-        <a href="https://www.dotabuff.com/heroes/${esc(h.key.replace(/_/g, '-'))}" target="_blank">Dotabuff ↗</a></div></div>
+        <a href="https://www.dotabuff.com/heroes/${esc(h.key.replace(/_/g, '-'))}" target="_blank">Dotabuff ↗</a></div>
+        <div style="margin-top:10px"><select id="vspick"><option value="">Сравнить с…</option>${Object.keys(S.C.heroes).map(Number).filter(x => x !== hid && S.meta.byId.has(x)).sort((x, y) => hero(x).name.localeCompare(hero(y).name)).map(x => `<option value="${x}">${esc(hero(x).name)}</option>`).join('')}</select></div></div>
       <div class="stats">
         <div class="stat"><div class="v">${tierBadge(pro.tier)}</div><div class="l">тир про</div></div>
         <div class="stat"><div class="v">${tierBadge(pub.tier)}</div><div class="l">тир паблик</div></div>
@@ -293,6 +294,7 @@ async function viewMetaHero(hid, seq) {
         <div class="tile"><div class="v num">${fmt(my.lh)}</div><div class="l">крипов</div><div class="s">в среднем</div></div>
         <div class="tile"><div class="v num ${my.wr - (myBr ? srcWr(m, myBr) : pub.wr) >= 0 ? 'win' : 'loss'}">${signPct(my.wr - (myBr ? srcWr(m, myBr) : pub.wr))}</div><div class="l">vs средний ${esc(brName(myBr || 'all'))}</div><div class="s">${pct(myBr ? srcWr(m, myBr) : pub.wr)} у всех</div></div>
       </div></section>` : ''}`;
+  $('#vspick').onchange = e => { if (e.target.value) location.hash = `#/meta/vs/${hid}/${e.target.value}`; };
   const mm = $('#mymatches');
   if (mm) mm.onclick = () => { S.filters.hero = String(hid); S.page = 0; lsSet('filters', S.filters); };
   drawCharts();

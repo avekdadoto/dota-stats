@@ -356,6 +356,7 @@ async function route() {
     if (parts[0] === 'draft') return await viewDraft(seq);
     if (parts[0] === 'live') return await viewLive(seq);
     if (parts[0] === 'pros') return await viewPros(seq);
+    if (parts[0] === 'meta' && parts[1] === 'vs' && /^\d+$/.test(parts[2] || '') && /^\d+$/.test(parts[3] || '')) return await viewHeroVs(+parts[2], +parts[3], seq);
     if (parts[0] === 'meta') return parts[1] && /^\d+$/.test(parts[1]) ? await viewMetaHero(+parts[1], seq) : await viewMeta(seq);
     if (parts[0] === 'cmp' && /^\d+$/.test(parts[1]) && /^\d+$/.test(parts[2])) return await viewCompare(+parts[1], +parts[2], seq);
     app.innerHTML = '<div class="err"><h3>Нет такой страницы</h3><a class="btn" href="#/">На главную</a></div>';
@@ -1170,6 +1171,7 @@ async function viewMatch(mid, me, seq) {
     ${advs ? `<section class="card" style="margin-top:16px"><h2>Преимущество <span class="r">${seg('adv', [['gold', 'Золото'], ['xp', 'Опыт']], S.adv || 'gold')}</span></h2>
       ${chartBox('adv', 200)}<div class="legend"><span><i style="background:var(--win)"></i>выше нуля: Radiant впереди</span><span><i style="background:var(--loss)"></i>ниже нуля: Dire впереди</span></div></section>` : ''}
     ${matchAnalysis(m, meP)}
+    <div id="draftan" style="margin-top:16px"></div>
     ${teamTable('Radiant', 'rad', rad, m.radiant_win, me, mvps, parties)}
     ${teamTable('Dire', 'dire', dire, !m.radiant_win, me, mvps, parties)}
     ${!m.parsed ? '<p class="muted" style="font-size:12px">Матч не распарсен: нет графика золота, закупов и бенчмарков. Жми «Запросить парсинг», через пару минут обнови страницу.</p>' : '<p class="muted" style="font-size:12px">Клик по игроку → закуп, бенчмарки и детали.</p>'}`;
@@ -1186,6 +1188,7 @@ async function viewMatch(mid, me, seq) {
     $('.seg[data-f="adv"]').onclick = e => { const b = e.target.closest('button'); if (!b) return; S.adv = b.dataset.v; $$('.seg[data-f="adv"] button').forEach(x => x.classList.toggle('on', x === b)); pushAdv(); };
   }
   const pb = $('#parse');
+  draftAnalysis(m, meP, seq);
   if (pb) pb.onclick = async () => {
     pb.disabled = true;
     const r = await post('/parse/' + mid).catch(e => ({ ok: false, message: e.message }));

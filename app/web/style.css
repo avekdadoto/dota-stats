@@ -520,6 +520,20 @@ select:focus, .inp:focus { border-color: var(--accent); }
 .pm-card h2 { margin: 4px 0; display: flex; gap: 10px; justify-content: center; align-items: center; }
 .pm-btns { display: flex; gap: 10px; justify-content: center; margin-top: 14px; }
 
+/* ── герой vs герой ── */
+.vsgrid { display: grid; grid-template-columns: 1fr 120px 1fr; gap: 12px; align-items: center; }
+.vsgrid select { width: 100%; }
+.vsh { text-align: center; }
+.vsh img { width: 100%; max-width: 240px; aspect-ratio: 16 / 9; object-fit: cover; border-radius: 10px; background: var(--surface-3); }
+.vsh h2 { margin: 6px 0 0; font-size: 20px; letter-spacing: 0; text-transform: none; justify-content: center; }
+.vsmid { text-align: center; }
+.vsscore { font-size: 34px; font-weight: 800; }
+.vst { margin-top: 14px; }
+.vst td { width: 40%; font: 600 15px var(--mono); }
+.vst td.vsl { width: 20%; text-align: center; color: var(--muted); font: 12px var(--sans); text-transform: uppercase; letter-spacing: 1px; white-space: normal; }
+.vst td.best { color: var(--win); }
+@media (max-width: 720px) { .vsgrid { grid-template-columns: 1fr 70px 1fr; } .vsscore { font-size: 24px; } }
+
 @media (max-width: 960px) { #livebtn span, #probtn span { display: none; } }
 @media (prefers-reduced-motion: reduce) { #livebtn .dot { animation: none; } }
 
